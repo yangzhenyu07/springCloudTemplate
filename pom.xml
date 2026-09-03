@@ -8,7 +8,7 @@
     <relativePath>yzy-dependencies-bom</relativePath>
   </parent>
   <groupId>com.example</groupId>
-  <artifactId>java-20260603</artifactId>
+  <artifactId>springCloudTemplate</artifactId>
   <packaging>pom</packaging>
   <version>1.0-SNAPSHOT</version>
   <properties>
@@ -16,7 +16,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <java.version>1.8</java.version>
   </properties>
-  <name>java-20260603</name>
+  <name>springCloudTemplate</name>
 
   <!-- 统一插件管理：spring-boot-dependencies 的 import 不包含 pluginManagement，
        各模块 spring-boot-maven-plugin 不写版本号会导致 repackage 被静默跳过，产出普通 jar -->
