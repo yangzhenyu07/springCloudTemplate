@@ -1,0 +1,45 @@
+server:
+  port: 9001
+
+spring:
+  application:
+    name: yzy-gateway-out
+  cloud:
+    nacos:
+      config:
+        file-extension: json
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        namespace: public
+        group: DEFAULT_GROUP
+        data-id: out-gateway-routes
+        refresh-enabled: true
+        shared-configs:
+          - data-id: out-service
+            group: DEFAULT_GROUP
+            file-extension: json
+            refresh-enabled: true
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        namespace: public
+        group: DEFAULT_GROUP
+    retry: # 重试配置
+      max-attempts: 3
+      delay: 1000 #重试间隔ms
+    timeout: 3000 # 超时配置
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 5s
+
+test:
+  message: "local-default-gateway"
+
+

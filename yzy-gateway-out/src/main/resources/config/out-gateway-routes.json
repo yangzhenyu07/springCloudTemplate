@@ -1,0 +1,26 @@
+[
+  {
+    "id": "demoA",
+    "uri": "http://127.0.0.1:8087",
+    "predicates": [
+      {
+        "name": "Path",
+        "args": {
+          "pattern": "/api/b/**"
+        }
+      }
+    ]
+  },
+  {
+    "id": "demoB",
+    "uri": "http://127.0.0.1:8089",
+    "predicates": [
+      {
+        "name": "Path",
+        "args": {
+          "pattern": "/api/a/**"
+        }
+      }
+    ]
+  }
+]

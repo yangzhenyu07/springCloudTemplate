@@ -1,0 +1,9 @@
+[
+  {
+    "service": "A",
+    "charset": "UTF-8"
+  },{
+    "service": "B",
+    "charset": "GBK"
+  }
+]

@@ -1,0 +1,66 @@
+server:
+  port: 8088
+  tomcat:
+    remote-ip-header: x-forwarded-for
+    protocol-header: x-forwarded-proto
+    uri-encoding: UTF-8
+
+spring:
+  application:
+    name: yzy-demo
+  main:
+    allow-circular-references: true
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        namespace: public
+        group: DEFAULT_GROUP
+    retry: # 重试配置
+      max-attempts: 3
+      delay: 1000 #重试间隔ms
+    timeout: 3000 # 超时配置
+    sentinel:
+      eager: false
+      transport:
+        dashboard: ""
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 5s
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/YZY_DB?characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: YZY_MASTER
+    password: yzy@1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    my:
+      flag: true
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+test:
+  message: "local-default-from-yml"
+
+
