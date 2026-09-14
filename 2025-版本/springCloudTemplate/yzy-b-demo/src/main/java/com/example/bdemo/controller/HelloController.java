@@ -1,7 +1,5 @@
 package com.example.bdemo.controller;
 
-import com.alibaba.nacos.shaded.com.google.common.collect.Lists;
-import com.alibaba.nacos.shaded.com.google.common.collect.Maps;
 import com.example.bdemo.entity.SysUser;
 import com.example.bdemo.service.SysUserService;
 import com.example.common.result.Result;
@@ -12,7 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import javax.annotation.Resource;
+import jakarta.annotation.Resource;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,8 +49,6 @@ public class HelloController {
     public Result<Map<String, Object>> hello() {
         String traceId = TraceIdUtil.getTraceId();
         log.info("yzy-b-demo /api/b/hello 被调用, traceId={}", traceId);
-        Lists.newArrayList();
-        Maps.newHashMap();
 
         Map<String, Object> result = new HashMap<>();
 

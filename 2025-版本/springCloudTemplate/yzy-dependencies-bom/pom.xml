@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>yzy-dependencies-bom</artifactId>
+  <packaging>pom</packaging>
+  <version>1.0-SNAPSHOT</version>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <!-- 编译目标：Boot 3.5 / Cloud 2025 要求 JDK 17+ -->
+    <java.version>17</java.version>
+
+    <!-- ====== 版本集中管理（修改版本只需改这里） ====== -->
+    <spring-boot.version>3.5.14</spring-boot.version>
+    <spring-cloud.version>2025.0.0</spring-cloud.version>
+    <!-- SCA 2025.0.0.0 官方适配：Spring Cloud 2025.0.x + Boot 3.5.x，Nacos 客户端 3.0.3（服务端需 3.x） -->
+    <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+    <hutool.version>5.8.15</hutool.version>
+    <!-- API 文档（Boot3 迁移）：knife4j-openapi3-jakarta(基于 springdoc) 替代 springfox -->
+    <knife4j.version>4.5.0</knife4j.version>
+    <springdoc.version>2.9.1</springdoc.version>
+    <!-- MyBatis-Plus：Boot3 需用 mybatis-plus-spring-boot3-starter（jakarta），不再使用 mybatis-plus-boot-starter -->
+    <mybatis-plus.version>3.5.17</mybatis-plus.version>
+    <fastjson2.version>2.0.47</fastjson2.version>
+    <!-- logstash-logback-encoder: 8.1 适配 logback 1.4+（Boot 3.x / logback 1.5） -->
+    <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
+    <internal.version>1.0.1</internal.version>
+  </properties>
+  <name>yzy-dependencies-bom</name>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Spring Boot BOM -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Spring Cloud BOM -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-dependencies</artifactId>
+        <version>${spring-cloud.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <!-- Spring Cloud Alibaba BOM (Nacos client 3.0.3，需 Nacos Server 3.x) -->
+      <dependency>
+        <groupId>com.alibaba.cloud</groupId>
+        <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+        <version>${spring-cloud-alibaba.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- Internal modules -->
+      <dependency>
+        <groupId>org.example.redis</groupId>
+        <artifactId>redis-module</artifactId>
+        <version>${internal.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example.common</groupId>
+        <artifactId>common-module-v1</artifactId>
+        <version>${internal.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example.common</groupId>
+        <artifactId>common-module-v2</artifactId>
+        <version>${internal.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example.common</groupId>
+        <artifactId>springCloud-module</artifactId>
+        <version>${internal.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>yzy-gateway</artifactId>
+        <version>1.0-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>com.example</groupId>
+        <artifactId>yzy-b-demo</artifactId>
+        <version>1.0-SNAPSHOT</version>
+      </dependency>
+
+      <!-- Third-party (versions not managed by Spring Boot or imported BOMs) -->
+      <dependency>
+        <groupId>cn.hutool</groupId>
+        <artifactId>hutool-all</artifactId>
+        <version>${hutool.version}</version>
+      </dependency>
+      <!-- OpenAPI3 文档：springdoc 2.9.x 适配 Boot 3.5.x；knife4j 负责 doc.html UI -->
+      <dependency>
+        <groupId>com.github.xiaoymin</groupId>
+        <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
+        <version>${knife4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>${springdoc.version}</version>
+      </dependency>
+      <!-- MyBatis-Plus for Spring Boot 3 -->
+      <dependency>
+        <groupId>com.baomidou</groupId>
+        <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        <version>${mybatis-plus.version}</version>
+      </dependency>
+      <!-- Boot 3 BOM 不再覆盖 httpclient 4.x，显式兜底（若模块继续使用） -->
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>4.5.14</version>
+      </dependency>
+      <dependency>
+        <groupId>com.alibaba.fastjson2</groupId>
+        <artifactId>fastjson2</artifactId>
+        <version>${fastjson2.version}</version>
+      </dependency>
+      <!-- fastjson2 的 Spring6 MVC 消息转换器扩展（fastjson v1 不支持 Boot3/Servlet6） -->
+      <dependency>
+        <groupId>com.alibaba.fastjson2</groupId>
+        <artifactId>fastjson2-extension-spring6</artifactId>
+        <version>${fastjson2.version}</version>
+      </dependency>
+      <!-- JSON 日志输出（ELK/filebeat 采集用） -->
+      <dependency>
+        <groupId>net.logstash.logback</groupId>
+        <artifactId>logstash-logback-encoder</artifactId>
+        <version>${logstash-logback-encoder.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+</project>

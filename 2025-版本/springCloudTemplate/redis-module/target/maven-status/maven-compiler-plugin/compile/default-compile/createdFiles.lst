@@ -1,0 +1,5 @@
+com\example\config\RedisStdProperties$Cluster.class
+com\example\config\RedisStdProperties$Sentinel.class
+com\example\config\RedisStdConfig.class
+com\example\config\RedisStdProperties$Pool.class
+com\example\config\RedisStdProperties.class

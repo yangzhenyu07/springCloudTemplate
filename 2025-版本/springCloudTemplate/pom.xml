@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.example</groupId>
+    <artifactId>yzy-dependencies-bom</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <relativePath>yzy-dependencies-bom</relativePath>
+  </parent>
+  <groupId>com.example</groupId>
+  <artifactId>springCloudTemplate</artifactId>
+  <packaging>pom</packaging>
+  <version>1.0-SNAPSHOT</version>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <java.version>17</java.version>
+  </properties>
+  <name>springCloudTemplate</name>
+
+  <!-- 统一插件管理：spring-boot-dependencies 的 import 不包含 pluginManagement，
+       各模块 spring-boot-maven-plugin 不写版本号会导致 repackage 被静默跳过，产出普通 jar -->
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+          <!-- 非 starter-parent 结构必须显式绑定 repackage，否则产出普通 jar -->
+          <executions>
+            <execution>
+              <id>repackage</id>
+              <goals>
+                <goal>repackage</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <!-- 固定 compiler 插件与 Java 8 目标，避免 JDK 17 环境下默认 source 1.5 报错 -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.8.1</version>
+          <configuration>
+            <source>${java.version}</source>
+            <target>${java.version}</target>
+            <encoding>UTF-8</encoding>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <modules>
+    <module>yzy-dependencies-bom</module>
+    <module>redis-module</module>
+    <module>common-module-v1</module>
+    <module>springCloud-module</module>
+    <module>yzy-demo</module>
+    <module>yzy-gateway-in</module>
+    <module>yzy-b-demo</module>
+  </modules>
+
+</project>

@@ -1,0 +1,57 @@
+server:
+  port: 8088
+  tomcat:
+    remote-ip-header: x-forwarded-for
+    protocol-header: x-forwarded-proto
+    uri-encoding: UTF-8
+
+spring:
+  application:
+    name: yzy-demo
+  main:
+    allow-circular-references: true
+  config:
+    # SCA 2025.x 使用 spring.config.import 拉取 Nacos 配置（替代 bootstrap.yml 机制）
+    import:
+      - optional:nacos:yzy-demo.yml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:18848
+        file-extension: yml
+        namespace: yzy
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:18848
+        namespace: yzy
+        group: DEFAULT_GROUP
+    sentinel:
+      eager: false
+      transport:
+        dashboard: ""
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 5s
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/YZY_DB?characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: YZY_MASTER
+    password: yzy@1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  redis:
+    my:
+      flag: true
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+test:
+  message: "local-default-from-yml"

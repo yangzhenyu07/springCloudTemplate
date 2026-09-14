@@ -1,0 +1,40 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: yzy-gateway-in
+  config:
+    # SCA 2025.x 使用 spring.config.import 拉取 Nacos 配置（替代 bootstrap.yml 机制）
+    # 网关路由保持本地配置；Nacos 侧若存在 yzy-gateway-in.yml 则覆盖 test.message
+    import:
+      - optional:nacos:yzy-gateway-in.yml?group=DEFAULT_GROUP&refreshEnabled=true
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:18848
+        file-extension: yml
+        namespace: yzy
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:18848
+        namespace: yzy
+        group: DEFAULT_GROUP
+    gateway:
+      routes:
+        - id: yzy-b-demo-route
+          uri: lb://yzy-b-demo
+          predicates:
+            - Path=/api/b/**
+          filters:
+            - StripPrefix=0
+      discovery:
+        locator:
+          enabled: true
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 5s
+
+test:
+  message: "local-default-gateway"

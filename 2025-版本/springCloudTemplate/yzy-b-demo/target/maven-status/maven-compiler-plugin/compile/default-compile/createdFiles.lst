@@ -1,0 +1,6 @@
+com\example\bdemo\YzyBDemoApplication.class
+com\example\bdemo\controller\HelloController.class
+com\example\bdemo\mapper\SysUserMapper.class
+com\example\bdemo\entity\SysUser.class
+com\example\bdemo\service\SysUserService.class
+com\example\bdemo\config\TraceIdConfig.class
