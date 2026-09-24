@@ -111,6 +111,12 @@
         <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         <version>${mybatis-plus.version}</version>
       </dependency>
+      <!-- v3.5.9 起 PaginationInnerInterceptor 从主包拆分到独立模块，用分页必须显式引入 -->
+      <dependency>
+        <groupId>com.baomidou</groupId>
+        <artifactId>mybatis-plus-jsqlparser</artifactId>
+        <version>${mybatis-plus.version}</version>
+      </dependency>
       <!-- Boot 3 BOM 不再覆盖 httpclient 4.x，显式兜底（若模块继续使用） -->
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>

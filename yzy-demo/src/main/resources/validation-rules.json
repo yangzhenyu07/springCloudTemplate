@@ -1,0 +1,71 @@
+{
+  "version": "1.0",
+  "desc": "字段维度校验规则：scene -> 字段key -> 该字段在本场景下的全部规则。注解只引用 key，规则值全部来自本文件",
+  "scenes": {
+    "CREATE": {
+      "customerNo": {
+        "minLen": 6,
+        "maxLen": 20
+      },
+      "customerName": {
+        "notNull": true,
+        "maxLen": 20,
+        "message": "客户姓名必填且不超过20字"
+      },
+      "phone": {
+        "notNull": true,
+        "minLen": 11,
+        "maxLen": 11,
+        "message": "手机号必须为11位"
+      },
+      "idCard": {
+        "maxLen": 18,
+        "message": "身份证号不能超过18位"
+      },
+      "address": {
+        "maxLen": 100
+      },
+      "commonRemark": {
+        "maxLen": 50,
+        "message": "备注长度不能超过50字"
+      }
+    },
+    "UPDATE": {
+      "customerNo": {
+        "notNull": true,
+        "minLen": 6,
+        "maxLen": 20,
+        "message": "修改场景下客户编号必填"
+      },
+      "customerName": {
+        "notNull": true,
+        "maxLen": 30
+      },
+      "phone": {
+        "minLen": 11,
+        "maxLen": 11
+      },
+      "idCard": {
+        "notNull": true,
+        "maxLen": 18
+      },
+      "commonRemark": {
+        "maxLen": 200
+      }
+    },
+    "AUDIT": {
+      "customerNo": {
+        "notNull": true,
+        "message": "审核场景必须提供客户编号"
+      },
+      "idCard": {
+        "notNull": true,
+        "maxLen": 18
+      },
+      "creditLevel": {
+        "notNull": true,
+        "message": "审核场景必须填写信用等级"
+      }
+    }
+  }
+}

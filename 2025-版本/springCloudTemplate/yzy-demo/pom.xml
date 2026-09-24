@@ -69,6 +69,11 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         </dependency>
+        <!-- 分页插件：v3.5.9 起 PaginationInnerInterceptor 拆到独立模块，不引入则分页不生效且编译报「找不到符号」 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+        </dependency>
         <!-- MySQL Driver (Boot 3 改名为 com.mysql:mysql-connector-j) -->
         <dependency>
             <groupId>com.mysql</groupId>
