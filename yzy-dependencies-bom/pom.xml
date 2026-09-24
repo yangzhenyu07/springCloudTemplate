@@ -21,6 +21,9 @@
     <fastjson2.version>2.0.47</fastjson2.version>
     <!-- logstash-logback-encoder: 7.3 是最后支持 logback 1.2.x（Boot 2.6）的版本；7.4+ 需要 logback 1.3+ -->
     <logstash-logback-encoder.version>7.3</logstash-logback-encoder.version>
+    <!-- RocketMQ 官方 Spring Boot Starter：2.2.2 对应 rocketmq-client 4.9.3，兼容 Boot 2.x / Java 8。
+         （bes-cloudmq-h-clernt-all 为宝兰德私有依赖，本地仓库不可得，经确认改用官方 starter） -->
+    <rocketmq-spring-boot-starter.version>2.2.2</rocketmq-spring-boot-starter.version>
     <internal.version>1.0.1</internal.version>
   </properties>
   <name>yzy-dependencies-bom</name>
@@ -115,6 +118,12 @@
         <groupId>net.logstash.logback</groupId>
         <artifactId>logstash-logback-encoder</artifactId>
         <version>${logstash-logback-encoder.version}</version>
+      </dependency>
+      <!-- RocketMQ Spring Boot Starter（生产者/消费者统一版本入口） -->
+      <dependency>
+        <groupId>org.apache.rocketmq</groupId>
+        <artifactId>rocketmq-spring-boot-starter</artifactId>
+        <version>${rocketmq-spring-boot-starter.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

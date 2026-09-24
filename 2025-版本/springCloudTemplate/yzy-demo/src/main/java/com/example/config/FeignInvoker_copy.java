@@ -47,7 +47,7 @@ public class FeignInvoker_copy {
      * host:port 形式的直连地址识别（绕过 LB）。
      * 仅做形式识别，不会发起 DNS / 网络探测。
      */
-    private static final Pattern HOST_PORT_PATTERN = Pattern.compile("^(.+):(\\d+)$");
+    private static final Pattern HOST_PORT_PATTERN = Pattern.compile("^(.+):(\\d+)(/)?$");
 
     /**
      * 严格 IPv4 字面量识别（每段 0-255）。拒绝 999.999.999.999 等非法值。

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.example</groupId>
+        <artifactId>springCloudTemplate</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>yzy-state-machine</artifactId>
+    <packaging>jar</packaging>
+    <name>yzy-state-machine</name>
+    <description>交易中心状态机服务：RocketMQ 顺序消费 + 订单状态流转</description>
+
+    <dependencies>
+        <!-- Spring Cloud 模块（Nacos + Bootstrap 等） -->
+        <dependency>
+            <groupId>com.example.common</groupId>
+            <artifactId>springCloud-module</artifactId>
+        </dependency>
+        <!-- 公共工具模块（Result、TraceId 等，springCloud-module 已传递依赖） -->
+        <dependency>
+            <groupId>com.example.common</groupId>
+            <artifactId>common-module-v1</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- MyBatis-Plus -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+        </dependency>
+        <!-- MySQL Driver -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- RocketMQ 官方 Starter（消费者：ORDERLY 顺序消费；版本由 yzy-dependencies-bom 统一管理） -->
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-spring-boot-starter</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

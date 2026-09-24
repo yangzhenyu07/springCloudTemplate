@@ -48,6 +48,12 @@
             <encoding>UTF-8</encoding>
           </configuration>
         </plugin>
+        <!-- Maven 3.6.3 自带 surefire 2.12.4 不支持 JUnit 5，固定 2.22.2 才能跑 spring-boot-starter-test 的测试 -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>2.22.2</version>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
@@ -61,6 +67,7 @@
     <module>yzy-gateway-in</module>
     <module>yzy-gateway-out</module>
     <module>yzy-b-demo</module>
+    <module>yzy-state-machine</module>
   </modules>
 
 </project>

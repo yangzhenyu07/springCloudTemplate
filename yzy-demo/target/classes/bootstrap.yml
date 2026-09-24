@@ -60,6 +60,15 @@ mybatis-plus:
     db-config:
       id-type: auto
 
+# RocketMQ 配置（生产者：交易中心顺序消息）
+rocketmq:
+  name-server: 127.0.0.1:9876
+  producer:
+    # 生产者组：事务回查/顺序消息发送时使用
+    group: yzy-demo-trade-producer
+    # 同步发送超时时间（ms）
+    send-message-timeout: 3000
+
 test:
   message: "local-default-from-yml"
 

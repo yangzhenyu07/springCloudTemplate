@@ -1,0 +1,43 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: yzy-state-machine
+  cloud:
+    nacos:
+      config:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        file-extension: yml
+        namespace: public
+        group: DEFAULT_GROUP
+      discovery:
+        server-addr: 127.0.0.1:8848
+        username: nacos
+        password: nacos
+        namespace: public
+        group: DEFAULT_GROUP
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 5s
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/YZY_DB?characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: YZY_MASTER
+    password: yzy@1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+# RocketMQ 配置（消费者：ORDERLY 顺序消费交易中心状态消息）
+rocketmq:
+  name-server: 127.0.0.1:9876
+  # 消费者相关配置通过 @RocketMQMessageListener 注解声明（topic/consumerGroup/consumeMode）

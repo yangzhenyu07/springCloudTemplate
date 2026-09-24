@@ -13,6 +13,8 @@ public enum ResultCode {
     UNAUTHORIZED(401, "未认证"),
     FORBIDDEN(403, "无权限"),
     NOT_FOUND(404, "资源不存在"),
+    /** 状态冲突：请求与业务对象当前状态不符（如乱序操作、状态机前置条件不满足） */
+    CONFLICT(409, "状态冲突"),
     SERVICE_ERROR(503, "服务不可用");
 
     private final int code;
