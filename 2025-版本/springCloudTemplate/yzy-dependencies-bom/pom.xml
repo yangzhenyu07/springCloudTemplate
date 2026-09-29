@@ -26,6 +26,8 @@
     <!-- logstash-logback-encoder: 8.1 适配 logback 1.4+（Boot 3.x / logback 1.5） -->
     <logstash-logback-encoder.version>8.1</logstash-logback-encoder.version>
     <internal.version>1.0.1</internal.version>
+    <fastjson.version>2.0.47</fastjson.version>
+
   </properties>
   <name>yzy-dependencies-bom</name>
 
@@ -133,6 +135,12 @@
         <groupId>com.alibaba.fastjson2</groupId>
         <artifactId>fastjson2-extension-spring6</artifactId>
         <version>${fastjson2.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.alibaba</groupId>
+        <artifactId>fastjson</artifactId>
+        <version>${fastjson.version}</version>
       </dependency>
       <!-- JSON 日志输出（ELK/filebeat 采集用） -->
       <dependency>

@@ -28,6 +28,12 @@
             <artifactId>redis-module</artifactId>
         </dependency>
 
+        <!-- yzy-demo 对外 SDK：TestApiController 实现其中的 Feign 接口，保证契约同步 -->
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>yzy-demo-api</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -55,6 +61,20 @@
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
+        </dependency>
+
+        <!-- ===== MyBatis-Plus 代码生成器（仅构建期使用，不打进运行 jar） ===== -->
+        <!-- 运行方式见 src/test/java/com/example/bdemo/generator/CodeGenerator.java 类注释 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-generator</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MP Generator 默认使用 Velocity 模板引擎，其依赖为 optional，此处必须显式声明 -->
+        <dependency>
+            <groupId>org.apache.velocity</groupId>
+            <artifactId>velocity-engine-core</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

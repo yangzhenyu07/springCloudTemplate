@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.example</groupId>
+        <artifactId>springCloudTemplate</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>yzy-demo-api</artifactId>
+    <packaging>jar</packaging>
+    <name>yzy-demo-api</name>
+
+    <dependencies>
+        <!-- OpenFeign 契约：@FeignClient 来自 spring-cloud-openfeign-core，
+             @PostMapping/@RequestBody 来自 spring-web，均由 spring-cloud-starter-openfeign 传递引入。
+             这里刻意不依赖 springCloud-module：SDK jar 只提供接口与 DTO，
+             不把 Nacos / Sentinel / bootstrap 等运行时组件强加给使用方。 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
+        </dependency>
+
+        <!-- fastjson：提供 com.alibaba.fastjson.support.spring.FastJsonHttpMessageConverter（Spring 5 版）。
+             fastjson2 核心包 / fastjson2-extension 都没有这个类，spring6 版本又要求 jakarta，故用兼容坐标。 -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+        </dependency>
+
+        <!-- Lombok：仅编译期（版本由 spring-boot-dependencies BOM 管理） -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+</project>

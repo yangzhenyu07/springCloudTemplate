@@ -67,6 +67,7 @@
     <module>yzy-gateway-in</module>
     <module>yzy-gateway-out</module>
     <module>yzy-b-demo</module>
+    <module>yzy-demo-api</module>
     <module>yzy-state-machine</module>
   </modules>
 

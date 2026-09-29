@@ -1,10 +1,12 @@
 package com.example.common.trace;
 
+import com.example.common.flow.FlowContextCommon;
+import com.example.common.tag.TagUtils;
+
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-
 /**
  * Servlet TraceId 过滤器
  * <p>
@@ -24,6 +26,8 @@ public class TraceIdFilter implements Filter {
 
         // 从请求头获取 traceId，没有则生成
         String traceId = request.getHeader(TraceIdUtil.TRACE_ID_HEADER);
+        String centerTag = request.getHeader(FlowContextCommon.CENTER_TAG);
+        TagUtils.updateChannelCenterTag(centerTag != null ? centerTag: "-");
         TraceIdUtil.setTraceId(traceId);
 
         // 写入响应头

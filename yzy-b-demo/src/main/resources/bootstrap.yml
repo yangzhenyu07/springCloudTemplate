@@ -40,6 +40,8 @@ spring:
       database: 2
 
 mybatis-plus:
+  # 生成器产出的 XML 放在 resources/mapper 下，显式声明避免自定义 SQL 时找不到 statement
+  mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
