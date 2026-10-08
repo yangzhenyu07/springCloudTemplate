@@ -1,3 +1,4 @@
+
 INSERT INTO scene_info
 ( SCENE_CODE, SCENE_NAME, SCENE_DESC, CREATE_TIME, UPDATE_TIME)
 VALUES( 'yzv_test', '流程编排测试', '','2026-05-28 16:02:57', '2026-05-28 16:02:57');
@@ -8,10 +9,11 @@ VALUES( 'yzv_test', 'yes_t_test', 1, '','2026-06-24 12:35:39.565', '2026-06-24 1
 
 INSERT INTO scene_flow_relation
 ( SCENE_CODE, FLOW_CODE, SORT_NO, CONDITIONAL, CREATE_TIME, UPDATE_TIME)
-VALUES( 'yzv_test', 'no_t_test', 2, '[  { "condition": "#context.conditionCheck.versionId.contains('v1')  and #context.conditionCheck.id = '1'",
+VALUES( 'yzv_test', 'no_t_test', 2, '[  { "condition": "#context.conditionCheck.versionId.contains(\'v1\')  and #context.conditionCheck.id = \'1\'",
 "subFlowCode": "no_t_test_v1",  "sortNo": 1  },
-{ "condition": "#context.conditionCheck.versionId.contains('v2')  and #context.conditionCheck.id = '2'",
+{ "condition": "#context.conditionCheck.versionId.contains(\'v2\')  and #context.conditionCheck.id = \'2\'",
 "subFlowCode": "no_t_test_v2",  "sortNo": 2  } ]', '2026-06-16 19:19:37.772', '2026-06-16 19:19:41.974');
+
 
 INSERT INTO flow_info
 ( FLOW_CODE, FLOW_NAME, FLOW_TYPE, SCENE_DESC, CREATE_TIME, UPDATE_TIME)

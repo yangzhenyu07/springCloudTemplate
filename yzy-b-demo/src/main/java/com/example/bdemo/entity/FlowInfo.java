@@ -47,7 +47,7 @@ public class FlowInfo implements Serializable {
     /**
      * 场景描述
      */
-    private String sceneDes;
+    private String sceneDesc;
 
     /**
      * 创建时间

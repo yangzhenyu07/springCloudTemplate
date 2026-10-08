@@ -86,7 +86,7 @@ public class TradeFlowConfigAssembler {
             def.setFlowCode(e.getFlowCode());
             def.setFlowName(e.getFlowName());
             def.setFlowType(e.getFlowType());
-            def.setFlowDesc(e.getSceneDes());
+            def.setFlowDesc(e.getSceneDesc());
             def.setNodeCodes(flowToNodes.getOrDefault(e.getFlowCode(), new ArrayList<>()));
             flowMap.put(e.getFlowCode(), def);
         }
