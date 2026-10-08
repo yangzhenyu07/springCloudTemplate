@@ -58,12 +58,12 @@ INSERT INTO flow_node ( NODE_CODE, NODE_NAME, NODE_DESC, NODE_TYPE, HANDLER_BEAN
 VALUES( 'testV2BusiHandler', 'testV1BusiHandler v2 无事务版本测试', 'BusiHandler v2 版本测试', 'LOCAL', 'testV2BusiHandler', '{}','2026-06-03 17:31:22.792', '2026-06-03 17:31:27.845');
 
 INSERT INTO flow_node ( NODE_CODE, NODE_NAME, NODE_DESC, NODE_TYPE, HANDLER_BEAN_NAME, NODE_CONFIG, CREATE_TIME, UPDATE_TIME)
-VALUES( 'testFeignHandler', 'testFeignHandler feign 无事务调用测试', 'testFeignHandler feign 调用测试', 'FEIGN', 'testFeignHandler', '{"serverId":"dcep-wallet-personal-service",
-"apiPatch":"/api/inner/wallet/compQueryV1","method":"POST"}','2026-06-24 17:33:27.960','2026-06-24 17:33:27.960');
+VALUES( 'testFeignHandler', 'testFeignHandler feign 无事务调用测试', 'testFeignHandler feign 调用测试', 'FEIGN', 'testFeignHandler', '{"serverId":"yzy-demo","apiPatch":"/api/sdk/apiTest","method":"POST"},"method":"POST"}','2026-06-24 17:33:27.960','2026-06-24 17:33:27.960');
+
 
 INSERT INTO flow_node ( NODE_CODE, NODE_NAME, NODE_DESC, NODE_TYPE, HANDLER_BEAN_NAME, NODE_CONFIG, CREATE_TIME, UPDATE_TIME)
 VALUES( 'testTransBusiHandler', 'testTransBusiHandler 事务版本测试', 'testTransBusiHandler 事务版本测试', 'LOCAL', 'testTransBusiHandler', '{}','2026-06-03 17:31:22.792',
 '2026-06-03 17:31:27.845');
 
 INSERT INTO flow_node ( NODE_CODE, NODE_NAME, NODE_DESC, NODE_TYPE, HANDLER_BEAN_NAME, NODE_CONFIG, CREATE_TIME, UPDATE_TIME)
-VALUES( 'testTransFeignHandler', 'testTransFeignHandler feign 无事务调用测试', 'testTransFeignHandler feign 调用测试', 'FEIGN', 'testTransFeignHandler', '{"serverId":"dcep-wallet-personal-service","apiPatch":"/api/inner/wallet/compQueryV1","method":"POST"}','2026-06-24 17:33:27.960','2026-06-24 17:33:27.960');
+VALUES( 'testTransFeignHandler', 'testTransFeignHandler feign 无事务调用测试', 'testTransFeignHandler feign 调用测试', 'FEIGN', 'testTransFeignHandler', '{"serverId":"yzy-demo","apiPatch":"/api/sdk/apiTest","method":"POST"}','2026-06-24 17:33:27.960','2026-06-24 17:33:27.960');

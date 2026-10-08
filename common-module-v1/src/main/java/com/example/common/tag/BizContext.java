@@ -1,8 +1,8 @@
 package com.example.common.tag;
 
 
-import com.alibaba.nacos.shaded.com.google.common.collect.Maps;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class BizContext {
@@ -44,7 +44,7 @@ public class BizContext {
     private static class Data{
         private Map<String,Object> map;
         private Data(){
-            this.map = Maps.newHashMap();
+            this.map = new HashMap<>();
         }
     }
 }

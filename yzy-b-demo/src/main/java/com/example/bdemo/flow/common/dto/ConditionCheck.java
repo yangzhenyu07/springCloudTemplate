@@ -11,5 +11,6 @@ import lombok.Data;
 @Data
 public class ConditionCheck {
     private String appId;
-    private String versionID;
+    private String versionId;
+    private String id;
 }
