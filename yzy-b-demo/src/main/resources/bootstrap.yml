@@ -1,9 +1,12 @@
 server:
-  port: 8089
+  port: 8090
 
 spring:
   application:
     name: yzy-b-demo
+  main:
+    allow-bean-definition-overriding: true
+    allow-circular-references: true
   cloud:
     nacos:
       config:
@@ -13,6 +16,11 @@ spring:
         file-extension: yml
         namespace: public
         group: DEFAULT_GROUP
+        # SCA 2021.0.6.0 起默认会校验是否配置了 spring.config.import=nacos:。
+        # 本项目用 bootstrap.yml 的老方式加载 Nacos 配置，不能加 spring.config.import
+        # （实测会导致 server.port 被忽略），因此这里关掉该检查。
+        import-check:
+          enabled: false
       discovery:
         server-addr: 127.0.0.1:8848
         username: nacos

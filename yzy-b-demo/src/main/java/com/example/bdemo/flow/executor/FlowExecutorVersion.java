@@ -12,6 +12,7 @@ import com.example.bdemo.flow.condition.SpelConditionEvaluator;
 import com.example.bdemo.flow.factory.TradeFlowFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
@@ -27,6 +28,21 @@ public class FlowExecutorVersion {
     private final TradeFlowFactory tradeFlowFactory;
     private final NodeExecutorVersion nodeExecutor;
     private final SpelConditionEvaluator conditionEvaluator;
+
+    /**
+     * 子场景回调执行器（条件分支命中 subSceneCode 时回灌调用）。
+     *
+     * <p>必须 @Lazy：SceneExecutorVersion 通过构造器注入本类，而本类又依赖它，形成
+     * Scene -> Flow -> Scene 的环。Spring 的三级缓存是在<b>构造器执行完之后</b>才暴露早期引用，
+     * 所以构造器注入参与的环，靠 spring.main.allow-circular-references=true 也救不回来（该开关只对
+     * 纯字段/setter 注入的环有效）。这里在"回调方向"加 @Lazy，让本类构造时注入的是代理，
+     * 真正调用时才去容器取 bean，环被打断。
+     *
+     * <p>注意：加在字段上即可生效（非 final 字段注入）；不要加在 SceneExecutorVersion 侧 ——
+     * 那边是 final + @RequiredArgsConstructor 的构造器注入，Lombok 默认不会把字段上的 @Lazy
+     * 复制到构造器参数，加了等于没加。
+     */
+    @Lazy
     @Autowired
     private SceneExecutorVersion sceneExecutor;
 

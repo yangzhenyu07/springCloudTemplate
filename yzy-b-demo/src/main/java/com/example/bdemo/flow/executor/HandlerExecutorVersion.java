@@ -21,7 +21,7 @@ public class HandlerExecutorVersion {
             KfhlReqHead kfhlReqHead = requestTemp.getHead();
             context.setKfhlReqHead(kfhlReqHead);
             BaseReqData<?> baseReqData = requestTemp.getData();
-            if (null == baseReqData) return null;
+            if (null == baseReqData) {return null;}
 
             UwapHeader msgHeader = baseReqData.getMsgHeader();
             if (null != msgHeader){

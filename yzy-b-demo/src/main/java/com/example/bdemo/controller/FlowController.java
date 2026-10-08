@@ -1,7 +1,8 @@
 package com.example.bdemo.controller;
 
-import com.example.bdemo.dto.FlowDto;
-import com.example.bdemo.dto.OrderPaymentRequest;
+import com.example.bdemo.common.dto.BaseReqData;
+import com.example.bdemo.common.dto.KfhlReqHead;
+import com.example.bdemo.dto.*;
 import com.example.bdemo.flow.common.TradeFlowContext;
 import com.example.bdemo.flow.common.dto.ConditionCheck;
 import com.example.bdemo.flow.executor.HandlerExecutorVersion;
@@ -31,7 +32,16 @@ public class FlowController {
     private HandlerExecutorVersion handlerExecutorVersion;
     @GetMapping("/test")
     public void test() {
+
         FlowDto flowDto = new FlowDto();
+        KfhlReqHead kfhlReqHead = new KfhlReqHead();
+        kfhlReqHead.setAPPID("III");
+        flowDto.setHead(kfhlReqHead);
+        BaseReqData<FlowVo> baseReqData = new BaseReqData<>();
+        FlowVo flowVo = new FlowVo();
+        flowVo.setId("45");
+        baseReqData.setBody(flowVo);
+        flowDto.setData(baseReqData);
         TradeFlowContext tradeFlowContext = new TradeFlowContext();
         ConditionCheck conditionCheck = new ConditionCheck();
         conditionCheck.setVersionId("v2");
