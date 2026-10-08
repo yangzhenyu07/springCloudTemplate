@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class TestV1BusinessHandler extends AbstractBusiHandler {
+public class TestV1BusiHandler extends AbstractBusiHandler {
     @Override
     protected void executor(TradeFlowContext context, NodeDefinition node) {
-        log.info("--------------------TestV1BusinessHandler-------------------------");
+        log.info("--------------------TestV1BusiHandler-------------------------");
     }
 }

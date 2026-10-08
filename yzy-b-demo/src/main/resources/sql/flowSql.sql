@@ -47,6 +47,8 @@ VALUES( 'no_t_test_v2', 'testFeignHandler', 1, '2026-06-03 17:25:09.488', '2026-
 INSERT INTO flow_node_relation ( FLOW_CODE, NODE_CODE, SORT_NO, CREATE_TIME, UPDATE_TIME)
 VALUES( 'no_t_test_v2', 'testV2BusiHandler', 2, '2026-06-03 17:25:58.984', '2026-06-03 17:26:04.022');
 
+
+
 INSERT INTO flow_node ( NODE_CODE, NODE_NAME, NODE_DESC, NODE_TYPE, HANDLER_BEAN_NAME, NODE_CONFIG, CREATE_TIME, UPDATE_TIME)
 VALUES( 'testV1BusiHandler', 'testV1BusiHandler v1 无事务版本测试', 'BusiHandler v1 版本测试', 'LOCAL', 'testV1BusiHandler', '{}','2026-06-03 17:31:22.792', '2026-06-03 17:31:27.845');
 

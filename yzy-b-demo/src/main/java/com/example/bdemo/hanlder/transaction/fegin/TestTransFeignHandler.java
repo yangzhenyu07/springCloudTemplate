@@ -19,9 +19,9 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-public class TestTransactionFeignHandler extends AbstractFeginHandler<ApiSdkVoRes, ApiSdkVoRep>{
+public class TestTransFeignHandler extends AbstractFeginHandler<ApiSdkVoRes, ApiSdkVoRep>{
 
-    public TestTransactionFeignHandler(FeignInvoker feignInvoker, ObjectMapper objectMapper){
+    public TestTransFeignHandler(FeignInvoker feignInvoker, ObjectMapper objectMapper){
         super(feignInvoker,objectMapper);
     }
 
@@ -29,7 +29,7 @@ public class TestTransactionFeignHandler extends AbstractFeginHandler<ApiSdkVoRe
     protected ApiSdkVoRes buildRequest(TradeFlowContext context, NodeDefinition node) {
         ApiSdkVoRes apiSdkVoRes = new ApiSdkVoRes();
         apiSdkVoRes.setId("1");
-        log.info("TestTransactionFeignHandler 传参:{}", JSON.toJSONString(apiSdkVoRes));
+        log.info("TestTransFeignHandler 传参:{}", JSON.toJSONString(apiSdkVoRes));
         return apiSdkVoRes;
     }
 
@@ -40,6 +40,6 @@ public class TestTransactionFeignHandler extends AbstractFeginHandler<ApiSdkVoRe
 
     @Override
     protected void handleResponse(TradeFlowContext context, ApiSdkVoRep response) {
-        log.info("TestTransactionFeignHandler 返参:{}", JSON.toJSONString(response));
+        log.info("TestTransFeignHandler 返参:{}", JSON.toJSONString(response));
     }
 }

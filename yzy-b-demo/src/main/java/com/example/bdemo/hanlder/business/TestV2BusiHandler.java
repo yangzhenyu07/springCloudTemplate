@@ -1,4 +1,4 @@
-package com.example.bdemo.hanlder.transaction.business;
+package com.example.bdemo.hanlder.business;
 
 import com.example.bdemo.flow.common.TradeFlowContext;
 import com.example.bdemo.flow.common.flow.NodeDefinition;
@@ -10,14 +10,14 @@ import org.springframework.stereotype.Component;
  * @author yangzhenyu
  * @version 1.0
  * @description:
- * @date 2026/9/30 09:59
+ * @date 2026/9/30 09:55
  */
 @Slf4j
 @Component
-public class TestTransactionBusHandler extends AbstractBusiHandler {
+public class TestV2BusiHandler extends AbstractBusiHandler {
     @Override
     protected void executor(TradeFlowContext context, NodeDefinition node) {
-        log.info("--------------------TestTransactionBusHandler-------------------------");
+        log.info("--------------------TestV2BusiHandler-------------------------");
 
     }
 }
