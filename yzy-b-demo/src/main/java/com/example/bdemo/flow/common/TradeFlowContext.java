@@ -4,8 +4,10 @@ import com.example.bdemo.common.dto.FlowCondition;
 import com.example.bdemo.common.dto.KfhlReqHead;
 import com.example.bdemo.common.dto.UwapHeader;
 import com.example.bdemo.flow.common.dto.CommonParam;
+import com.example.bdemo.flow.common.dto.ConditionCheck;
 import com.example.bdemo.flow.common.dto.WalletPayBaseInfo;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * @author yangzhenyu
@@ -13,6 +15,7 @@ import lombok.Data;
  * @description:
  * @date 2026/9/28 19:56
  */
+@EqualsAndHashCode(callSuper = true)
 @Data
 public class TradeFlowContext<T,R> extends FlowCommon{
     private String msgId; // 幂等使用
@@ -35,5 +38,8 @@ public class TradeFlowContext<T,R> extends FlowCommon{
 
     // 公共参数
     private CommonParam commonParam;
+
+    // 条件判断
+    private ConditionCheck conditionCheck;
 
 }

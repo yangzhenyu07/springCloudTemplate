@@ -122,7 +122,7 @@ public class FlowExecutorVersion {
             return;
         }
         for(ConditionBranchDefinition branch : sceneFlow.getConditionBranches()){
-            if(conditionEvaluator.evaluate(branch.getCompiledExpression(), context)){
+            if(conditionEvaluator.evaluatePre(branch.getCondition(),branch.getCompiledExpression(), context)){
                 if(branch.getSubFlowCode() != null){
                     executePreFlow(branch.getSubFlowCode(), context);
                 }
@@ -139,7 +139,7 @@ public class FlowExecutorVersion {
             return;
         }
         for(ConditionBranchDefinition branch : sceneFlow.getConditionBranches()){
-            if(conditionEvaluator.evaluate(branch.getCompiledExpression(), context)){
+            if(conditionEvaluator.evaluate(branch.getCondition(),branch.getCompiledExpression(), context)){
                 if(branch.getSubFlowCode() != null){
                     executeFlow(branch.getSubFlowCode(), context);
                 }

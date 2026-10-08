@@ -60,6 +60,8 @@
     <module>yzy-demo</module>
     <module>yzy-gateway-in</module>
     <module>yzy-b-demo</module>
+    <module>yzy-demo-api</module>
+
   </modules>
 
 </project>

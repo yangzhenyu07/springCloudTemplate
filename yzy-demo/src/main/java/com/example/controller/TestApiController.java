@@ -32,7 +32,7 @@ public class TestApiController implements TestApiClient {
         log.info("传参:{}", JSON.toJSONString(res));
 
         ApiSdkVoRep apiSdkVoRep = new ApiSdkVoRep();
-        apiSdkVoRep.setId("222");
+        apiSdkVoRep.setId(res.getId());
         apiSdkVoRep.setName("yangzhenyu");
         return apiSdkVoRep;
     }

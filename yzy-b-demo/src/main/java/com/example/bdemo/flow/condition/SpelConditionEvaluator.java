@@ -28,7 +28,7 @@ public class SpelConditionEvaluator {
         }
     }
 
-    public boolean evaluate(Expression expression, TradeFlowContext context){
+    public boolean evaluate(String condition,Expression expression, TradeFlowContext context){
         if(expression == null){
             throw new IllegalArgumentException("expression is null");
         }
@@ -38,8 +38,24 @@ public class SpelConditionEvaluator {
             Boolean result = expression.getValue(evaluationContext, Boolean.class);
             return Boolean.TRUE.equals(result);
         } catch (Exception e) {
-            log.error("condition evaluate failed", e);
+
+            log.error("条件评估失败、默认允许通过 | 表达式: {} | 错误: {}", condition,e.getMessage(),e);
             throw new IllegalArgumentException("condition evaluate failed");
+        }
+    }
+
+    public boolean evaluatePre(String condition,Expression expression, TradeFlowContext context){
+        if(expression == null){
+            throw new IllegalArgumentException("expression is null");
+        }
+        StandardEvaluationContext evaluationContext = new StandardEvaluationContext();
+        evaluationContext.setVariable("context", context);
+        try {
+            Boolean result = expression.getValue(evaluationContext, Boolean.class);
+            return Boolean.TRUE.equals(result);
+        } catch (Exception e) {
+            log.warn("预流程编排模式条件评估失败、默认允许通过 | 表达式: {} | 错误: {}", condition, e.getMessage());
+            return true;
         }
     }
 }

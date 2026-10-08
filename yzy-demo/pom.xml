@@ -26,7 +26,10 @@
             <groupId>org.example.redis</groupId>
             <artifactId>redis-module</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>yzy-demo-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

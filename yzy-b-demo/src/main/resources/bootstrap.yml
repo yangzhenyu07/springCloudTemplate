@@ -51,3 +51,5 @@ mybatis-plus:
 
 test:
   message: "local-default-from-b-demo-yml"
+flow:
+  predict: Y # 预流程编排开关
