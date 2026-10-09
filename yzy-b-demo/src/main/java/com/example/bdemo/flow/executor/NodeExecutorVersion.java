@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.util.Map;
 
 /**
@@ -19,11 +20,18 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class NodeExecutorVersion implements NodeCommon {
+public class NodeExecutorVersion implements NodeCommon,BaseExecutor {
+
+    private final ExecutorRegistry executorRegistry;
 
     private final Map<String, Handler> handlerMap;
-    @Autowired
-    private HandlerService handlerService;
+
+    private final  HandlerService handlerService;
+
+    @PostConstruct
+    public void registerSelf() {
+        executorRegistry.register(NODE_EXECUTOR, this);
+    }
 
     public void execute(NodeDefinition node, TradeFlowContext context) {
         if(node == null){
@@ -48,6 +56,7 @@ public class NodeExecutorVersion implements NodeCommon {
             }
         }
         if ("T".equals(type)){
+
             handlerService.transactionalHandler(handler, context, node);
         }else {
             handler.handle(context, node);

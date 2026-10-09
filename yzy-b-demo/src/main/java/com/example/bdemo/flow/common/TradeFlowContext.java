@@ -29,7 +29,7 @@ public class TradeFlowContext<T,R> extends FlowCommon{
     private UwapHeader uwapHeader;
 
     // 流程条件
-    private FlowCondition flowCondition;
+    private FlowCondition  flowCondition;
 
 
     // ------------- 通用上下文 --------------

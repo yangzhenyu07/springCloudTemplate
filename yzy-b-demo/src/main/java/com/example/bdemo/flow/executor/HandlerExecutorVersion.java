@@ -6,12 +6,22 @@ import com.example.bdemo.flow.common.TradeFlowContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import javax.annotation.PostConstruct;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class HandlerExecutorVersion {
+public class HandlerExecutorVersion implements BaseExecutor{
 
-    private final SceneExecutorVersion sceneExecutor;
+    private final ExecutorRegistry executorRegistry;
+
+
+    @PostConstruct
+    public void registerSelf() {
+        executorRegistry.register(HANDLER_EXECUTOR, this);
+    }
+
 
     public <REQ, RESP> RESP execute(String sceneCode, REQ request, TradeFlowContext<REQ, RESP> context, Class<RESP> responseType){
         context.setSceneId(sceneCode);
@@ -39,9 +49,11 @@ public class HandlerExecutorVersion {
         context.setOrgResponseContext(response); // 放入响应参数
         this.setCondition(context, request); // 放入conditon条件参数
         log.info("HandlerExecutor execute context:{}", JSON.toJSONString(context));
+        SceneExecutorVersion sceneExecutor = executorRegistry.get(SCENE_EXECUTOR, SceneExecutorVersion.class);
         sceneExecutor.executeScene(sceneCode, context);
         return context.getOrgResponseContext();
     }
+
 
     /**
      * 放入条件参数

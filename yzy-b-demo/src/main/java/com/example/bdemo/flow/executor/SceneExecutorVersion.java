@@ -18,21 +18,24 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.util.List;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SceneExecutorVersion {
+public class SceneExecutorVersion implements BaseExecutor{
 
     @Value("${flow.predict:N}")
     private String predict;
+    private final ExecutorRegistry executorRegistry;
 
     private final TradeFlowFactory tradeFlowFactory;
 
-//    @Lazy
-//    @Autowired
-    private final FlowExecutorVersion flowExecutor;
+    @PostConstruct
+    public void registerSelf() {
+        executorRegistry.register(SCENE_EXECUTOR, this);
+    }
 
     public void executeScene(String sceneCode, TradeFlowContext context) {
         init(context);
@@ -49,6 +52,8 @@ public class SceneExecutorVersion {
         }
         boolean flag = Boolean.TRUE;
         for (SceneFlowDefinition sceneFlow : scene.getSceneFlows()) {
+            FlowExecutorVersion flowExecutor = executorRegistry.get(FLOW_EXECUTOR, FlowExecutorVersion.class);
+
             flowExecutor.executeSceneFlow(sceneFlow, context);
             // TODO 判断流程停止，叫停循环
             if(context.isStopChain()){
@@ -69,6 +74,7 @@ public class SceneExecutorVersion {
             return;
         }
         for (SceneFlowDefinition sceneFlow : scene.getSceneFlows()) {
+            FlowExecutorVersion flowExecutor = executorRegistry.get(FLOW_EXECUTOR, FlowExecutorVersion.class);
             flowExecutor.executePreSceneFlow(sceneFlow, context);
         }
     }

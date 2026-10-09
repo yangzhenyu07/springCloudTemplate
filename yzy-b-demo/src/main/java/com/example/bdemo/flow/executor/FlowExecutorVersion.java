@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.text.MessageFormat;
 import java.util.List;
 
@@ -23,28 +24,19 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-public class FlowExecutorVersion {
+public class FlowExecutorVersion implements BaseExecutor{
 
+    private final ExecutorRegistry executorRegistry;
+    @PostConstruct
+    public void registerSelf() {
+        executorRegistry.register(FLOW_EXECUTOR, this);
+    }
     private final TradeFlowFactory tradeFlowFactory;
-    private final NodeExecutorVersion nodeExecutor;
     private final SpelConditionEvaluator conditionEvaluator;
 
-    /**
-     * 子场景回调执行器（条件分支命中 subSceneCode 时回灌调用）。
-     *
-     * <p>必须 @Lazy：SceneExecutorVersion 通过构造器注入本类，而本类又依赖它，形成
-     * Scene -> Flow -> Scene 的环。Spring 的三级缓存是在<b>构造器执行完之后</b>才暴露早期引用，
-     * 所以构造器注入参与的环，靠 spring.main.allow-circular-references=true 也救不回来（该开关只对
-     * 纯字段/setter 注入的环有效）。这里在"回调方向"加 @Lazy，让本类构造时注入的是代理，
-     * 真正调用时才去容器取 bean，环被打断。
-     *
-     * <p>注意：加在字段上即可生效（非 final 字段注入）；不要加在 SceneExecutorVersion 侧 ——
-     * 那边是 final + @RequiredArgsConstructor 的构造器注入，Lombok 默认不会把字段上的 @Lazy
-     * 复制到构造器参数，加了等于没加。
-     */
-    @Lazy
-    @Autowired
-    private SceneExecutorVersion sceneExecutor;
+
+
+
 
     public void executeFlow(String flowCode, TradeFlowContext context) {
         FlowDefinition flow = tradeFlowFactory.getFlow(flowCode);
@@ -101,6 +93,8 @@ public class FlowExecutorVersion {
             }
             NodeDefinition node = tradeFlowFactory.getNode(nodeCode);
             node.setFlowCode(flow.getFlowCode());
+            NodeExecutorVersion nodeExecutor = executorRegistry.get(NODE_EXECUTOR, NodeExecutorVersion.class);
+
             nodeExecutor.execute(node, context);
             long end = System.currentTimeMillis();
             FlowHistory flowHistory = new FlowHistory();
@@ -143,6 +137,8 @@ public class FlowExecutorVersion {
                     executePreFlow(branch.getSubFlowCode(), context);
                 }
                 if(branch.getSubSceneCode() != null && !sceneFlow.getSceneCode().equals(branch.getSubSceneCode())){
+                    SceneExecutorVersion sceneExecutor = executorRegistry.get(SCENE_EXECUTOR, SceneExecutorVersion.class);
+
                     sceneExecutor.executePreScene(sceneFlow.getSceneCode(), context);
                 }
                 return;
@@ -160,6 +156,8 @@ public class FlowExecutorVersion {
                     executeFlow(branch.getSubFlowCode(), context);
                 }
                 if(branch.getSubSceneCode() != null && !sceneFlow.getSceneCode().equals(branch.getSubSceneCode())){
+                    SceneExecutorVersion sceneExecutor = executorRegistry.get(SCENE_EXECUTOR, SceneExecutorVersion.class);
+
                     sceneExecutor.executeScene(sceneFlow.getSceneCode(), context);
                 }
                 return;
