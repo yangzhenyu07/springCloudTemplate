@@ -1,0 +1,92 @@
+
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\prompts\message_prompt_templates_demo.py
+三个 XxxMessagePromptTemplate 详解（langchain-core 1.7.0 实测）
+
+==============================================================
+1. SystemMessagePromptTemplate —— 系统指令模板
+==============================================================
+模板变量: ['domain', 'max_len']
+渲染结果:
+  [1] SystemMessage  | '你是一名PostgreSQL专家。回答要求：\n1. 只输出结论，不要解释过程\n2. 不超过50个字'
+
+元组写法底层生成的类: SystemMessagePromptTemplate
+>> 两种写法完全等价，元组更简洁。
+
+==============================================================
+2. HumanMessagePromptTemplate —— 用户消息模板
+==============================================================
+  [1] HumanMessage   | '请解释一下分布式锁'
+
+>> from_messages 里的字符串会被自动当成 human 消息：
+   底层类: ['SystemMessagePromptTemplate', 'HumanMessagePromptTemplate']
+  [1] SystemMessage  | '你是助手'
+  [2] HumanMessage   | '什么是幂等性？'
+
+>> 需要传图片等非文本内容时，就得手写模板类了：
+  [1] HumanMessage   | [{'type': 'text', 'text': '描述这张图：注意看左下角'}]
+
+==============================================================
+3. AIMessagePromptTemplate —— 模型消息模板
+==============================================================
+作用一：构造 few-shot 示例里的「标准答案」
+  [1] AIMessage      | '{ 结果：4 }'
+
+作用二：预填充（prefill），强制模型按指定格式续写
+  [1] HumanMessage   | '用 JSON 返回杭州的天气，字段：city, temp'
+  [2] AIMessage      | '{"city": "杭州", "temp": '
+>> 模型会从这个半截 JSON 继续写，不容易跑偏。
+
+作用三：拼接历史对话里模型之前说过的话
+  [1] HumanMessage   | 'Redis 分布式锁怎么防死锁？'
+  [2] AIMessage      | '加过期时间，并用看门狗自动续期。'
+
+==============================================================
+4. ChatMessagePromptTemplate —— 自定义角色（教材没提但有用）
+==============================================================
+  [1] ChatMessage    | '监控到一次超时'
+>> 主流 OpenAI 兼容模型一般只用 system/human/ai/tool，这个类较少用到。
+
+==============================================================
+5. 三种形态可以在同一个列表里混用
+==============================================================
+底层实际类型:
+    SystemMessagePromptTemplate
+    HumanMessagePromptTemplate
+    MessagesPlaceholder
+    HumanMessagePromptTemplate
+
+渲染结果:
+  [1] SystemMessage  | '你是DBA'
+  [2] HumanMessage   | '以下是之前的对话'
+  [3] HumanMessage   | '慢查询怎么查？'
+  [4] AIMessage      | '用 EXPLAIN ANALYZE。'
+  [5] HumanMessage   | '索引该怎么建？'
+
+==============================================================
+6. 综合实战：多轮客服机器人（串起全部知识点）
+==============================================================
+
+--- 第 1 轮 ---
+用户: 我的订单怎么还没发货？
+  [1] SystemMessage  | '你是小米的客服助手。规则：\n- 语气友好，用「您」称呼用户\n- 不知道就说不知道，不许编造\n- 回答控制在 100 字以内'
+  [2] HumanMessage   | '我的订单怎么还没发货？'
+助手: 您好，已为您查询到订单已打包，预计明天发出。
+>> 历史条数: 2
+
+--- 第 2 轮 ---
+用户: 能改成后天送吗？
+  [1] SystemMessage  | '你是小米的客服助手。规则：\n- 语气友好，用「您」称呼用户\n- 不知道就说不知道，不许编造\n- 回答控制在 100 字以内'
+  [2] HumanMessage   | '我的订单怎么还没发货？'
+  [3] AIMessage      | '您好，已为您查询到订单已打包，预计明天发出。'
+  [4] HumanMessage   | '能改成后天送吗？'
+助手: 好的，已帮您改成后天配送。
+>> 历史条数: 4
+
+>> 这就是 messages 最核心的作用：它是会话记忆的载体。
+>> 生产环境里，history 一般来自 Redis / PostgreSQL，
+   用 messages_to_dict() 存、messages_from_dict() 取（见 messages_demo.py）。
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

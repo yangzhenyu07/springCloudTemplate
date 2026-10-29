@@ -1,0 +1,238 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\runnableModule\6.RunnableWithMessageHistory回顾.py
+6. 「给 Runnable 加记忆能力」现在怎么干（DeepSeek + 最新 API）
+   注：RunnableWithMessageHistory 已废弃，本文件主线已切到 checkpointer
+
+==============================================================
+1. 这一组学的东西，哪些还在、哪些换了
+==============================================================
+  【核心判断】模型本身还是 Runnable，所以「包装」这套打法没变。
+  create_agent(model=...) 收的就是一个 Runnable，
+  你把 with_xxx 挂在模型上再传进去，完全合法。
+
+  API                           干什么             现状        现在怎么用
+  --------------------------------------------------------------------------------------------
+  bind                          预置参数            ✅ 照旧      llm.bind(...) 后传进 create_agent
+  configurable_fields           运行时改字段          ✅ 照旧      挂模型上，config 照常透传
+  configurable_alternatives     运行时换组件          ✅ 照旧      多模型灰度切换
+  with_retry                    失败重试            ✅ 照旧      本文件 demo_2 实测
+  with_fallbacks                失败换组件           ✅ 照旧      本文件 demo_2 实测
+  with_listeners                生命周期监听          ✅ 照旧      本文件 demo_2 实测
+  RunnableWithMessageHistory    加记忆能力           ❌ 已废弃     → checkpointer（demo_3）
+
+  【只有最后一项换了】为什么？
+
+  老 API 的思路是「读 → 塞 → 写」三步打包：
+     ① 从 history 里读消息
+     ② 塞进 prompt 的 {history} 占位符
+     ③ 把本轮的问答写回 history
+     这三步是「在链外面套一层」实现的，所以它必须是个 Runnable 包装。
+
+  新 API 的思路是「状态 + 自动存取」：
+     · 对话历史本身就是图的状态（state）
+     · checkpointer 负责每次 invoke 前读入、后写回
+     · 没有占位符、没有手动读写、也没有「包装」这个动作
+
+  ⚠️ 最直接的后果：你现在**拿不到那个 history 对象了**。
+     老代码里 store[session_id].messages 能直接看历史，
+     新代码要用 agent.get_state(config).values['messages']。
+     这是很多人迁移时第一个卡住的地方。
+
+  【Java 对照】
+     老写法 ≈ 手写 Filter：doFilter 里读 session、塞 request、再写回 session
+     新写法 ≈ Spring 的 @SessionAttributes：框架托管，你只管用
+     包装变内建，就是「自己写 Filter」变成「声明式托管」。
+
+==============================================================
+2. ⭐ 模型侧的 with_xxx 全部照旧
+==============================================================
+  先在本地 Runnable 上实测「重试」和「回退」真的生效，
+  再说它们怎么挂到模型上。
+
+  ① with_retry：失败自动重试
+     结果: 第 3 次才成功
+     实际调用次数: 3  （不配 retry_if_exception_type 的话，
+     参数错误也会被重试，白白花钱）
+
+  ② with_fallbacks：主组件挂了切备用
+     结果: 备用组件返回结果
+
+  ③ with_listeners：挂在模型上，实测监听真的触发
+     调用一次 agent，on_end 触发 1 次  ✅
+
+  【把它们挂到模型上，再交给 create_agent】
+
+     llm = ChatOpenAI(...)
+     llm = llm.with_retry(stop_after_attempt=3,
+                          retry_if_exception_type=(APIError,))
+     llm = llm.with_fallbacks([备用模型])
+     llm = llm.with_listeners(on_end=记耗时)
+
+     agent = create_agent(model=llm, checkpointer=InMemorySaver())
+     ↑ 一行都不用改，容错和监听照样生效
+
+  >> create_agent 返回的 CompiledStateGraph **自己也是 Runnable**，
+     所以它同样有 invoke / stream / batch / with_retry 这些方法。
+     这一组学的那套组合思维，在 agent 上依然通用。
+
+==============================================================
+3. ⭐ 记忆不再是包装，是图的内建能力
+==============================================================
+  【一行就有记忆】
+     agent = create_agent(model=llm, checkpointer=InMemorySaver())
+     没有 RunnableWithMessageHistory，没有 MessagesPlaceholder，
+     没有 get_session_history，也没有 {history} 占位符。
+
+  【实测】连续两轮：
+
+    第 1 轮  A: 好的，慕小课，我记住了。
+
+  第 2 轮（流式，stream_mode='messages'）：
+    AI: 你叫慕小课。
+
+  【历史在哪】用 get_state 看，不再有 history 对象：
+
+    agent.get_state(cfg).values['messages']  → 4 条
+      [HumanMessage] 我叫慕小课，记住这个名字
+      [AIMessage   ] 好的，慕小课，我记住了。
+      [HumanMessage] 我叫什么名字？
+      [AIMessage   ] 你叫慕小课。
+
+  【换个 thread_id，记忆立刻隔离】
+    新会话 → 你还没告诉我你的名字呀～
+    新会话状态里只有 2 条 ✅
+
+  【对照表：老写法 → 新写法】
+
+    老写法                                 新写法                       说明
+    ----------------------------------------------------------------------------------------
+    get_session_history(session_id)     不需要了                      checkpointer 内部管
+    MessagesPlaceholder('history')      不需要了                      状态里本来就有全部消息
+    input_messages_key='query'          不需要了                      统一用 messages 列表
+    history_messages_key='history'      不需要了                      同上
+    config 里的 session_id                改叫 thread_id              位置还在 configurable 下
+    store[sid].messages                 agent.get_state(cfg)      见上面实测
+
+==============================================================
+4. 组合顺序：老规则 vs 新规则
+==============================================================
+  【老规则】有两个要记住的顺序约束：
+
+     ① 历史包装放**最外层**（它管的是整轮对话）
+     ② 重试/回退/监听放**内层组件**上（它们管的是单次调用）
+     顺序搞反 → 重试时把历史重复写一遍，历史条数翻倍
+
+  【新规则】这个约束**直接消失了**，因为两者不在同一个维度上：
+
+     ┌────────────────────────────────────────────┐
+     │ create_agent(model=..., checkpointer=...)   │
+     │                                            │
+     │ · checkpointer  → 记忆（框架托管，无包装）  │
+     │ · with_xxx      → 挂在 model 上（独立维度） │
+     │                                            │
+     │ 两者互不干扰，不存在「谁包谁」的问题         │
+     └────────────────────────────────────────────┘
+
+  >> 心智负担实实在在降了一档：
+     老写法要想「重试包在哪一层才不会重复写历史」
+     新写法根本不用想——历史读写由框架做，你碰不到它。
+
+  【剩下的唯一顺序问题】只存在于模型这一层：
+
+     llm.with_retry(...)         先加重试
+        .with_fallbacks([...])   再加回退
+        .with_listeners(...)     最后加监听
+
+     原则：**越靠外层，覆盖范围越大**。
+     想让重试也被监听 → 监听包在最外面
+     想让回退也重试   → 重试包在最外面
+     具体怎么排，取决于你想监控/容错到哪一层。
+
+==============================================================
+5. 迁移技巧：老代码的 {query} 签名怎么平滑过渡
+==============================================================
+  【真实痛点】老代码到处是这种调用：
+     chain.invoke({'query': '你好'}, config={'configurable': {'session_id': 'x'}})
+  而新 API 要的是：
+     agent.invoke({'messages': [{'role': 'user', 'content': '你好'}]}, config=...)
+  签名不一样，全部改造一遍成本很高。
+
+  【解法】加一层 RunnableLambda 做适配，老调用点一行都不用改：
+
+     def to_state(x: dict) -> dict:
+         return {'messages': [{'role': 'user', 'content': x['query']}]}
+
+     adapted = RunnableLambda(to_state) | agent
+
+  【实测】用老签名调用，记忆照样生效：
+
+    adapted.invoke({'query': '我叫慕小课'})
+      → 你好，慕小课。
+    adapted.invoke({'query': '我叫什么'})
+      → 你叫慕小课。  ✅ 记忆生效
+
+  >> config 会自动透传给管道里的每个组件，
+     所以 thread_id 照样能用，不用额外处理。
+     （这也是 LCEL 管道的好处：config 传播是内建的）
+
+  【Java 对照】
+     这就是个适配器（Adapter）模式：
+     老接口 Invoke(String query) → 新接口 Invoke(List<Message>)，
+     中间加一层转换，调用方无感。和 Collections.list() 一个路子。
+
+==============================================================
+6. 老 API 的两个坑，新 API 里不存在了
+==============================================================
+  坑①：老 API 会自动写历史，你再手动 add 一遍就翻倍
+       （这也是为什么老代码里历史条数经常对不上）
+
+     新 API：历史由 checkpointer 内部读写，
+     你**根本拿不到**那个 history 对象去重复写——坑被结构性消除了。
+     想看历史 → get_state()；想改历史 → 用 update_state() 或中间件。
+
+  坑②：老 API 不传 session_id 不报错，静默地「不记历史」
+
+     实测：ValueError: Checkpointer requires one or more of the following 'configurable' keys: thre
+
+     ✅ 新 API **直接报错**，把坑变成了显式失败。
+     这比老 API 静默丢历史好得多——错误早暴露，不会线上才发现。
+
+  【迁移时真正要注意的新坑】
+
+    坑                               后果                                怎么避免
+    --------------------------------------------------------------------------------------------------------
+    thread_id 拼错 / 每次生成新的           每次都是新会话，看起来像「没记忆」                 thread_id 复用同一个用户级 ID
+    多实例部署还用 InMemorySaver           A 实例存的 B 读不到，用户聊着聊着失忆             换 Sqlite / Postgres 版 checkpointer
+    把整段对话塞进长期记忆 Store               Store 越滚越大，检索变慢                   Store 只存事实结论，流水归 checkpointer
+    以为 checkpointer 会自动裁剪           历史无限增长，最终超上下文窗口                   裁剪/摘要要自己配中间件
+
+==============================================================
+7. runnableModule 这一组学了什么
+==============================================================
+  API                               干什么             典型场景
+  ------------------------------------------------------------------------------
+  bind                              预置调用参数          多参函数进管道、固定 temperature
+  configurable_fields               运行时改字段          A/B 测试、运营后台调参
+  configurable_alternatives         运行时换组件          多模型切换、灰度
+  with_retry                        失败重试            偶发抖动、限流
+  with_fallbacks                    失败换组件           降级容灾
+  with_listeners                    生命周期监听          盯某一步的耗时/审计
+  checkpointer（替代老记忆包装）             加记忆能力           多轮对话，框架托管
+
+  前六个的共同点：**都是「包装」**
+     原组件不变，返回一个新的 Runnable
+     （Java 视角：装饰器模式 / 包装器，和 IO 流的 BufferedInputStream 一个路子）
+
+  第七个不同：**它不再是包装，是内建能力**
+     记忆从「你套一层」变成「框架管起来」
+
+  记忆口诀：
+     改参数 → bind
+     要动态 → configurable_fields / configurable_alternatives
+     要容错 → with_retry / with_fallbacks
+     要观测 → with_listeners / callbacks
+     要记忆 → create_agent + checkpointer（不再是包装）
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

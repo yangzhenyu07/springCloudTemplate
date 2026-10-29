@@ -1,0 +1,325 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\memory\7.记忆选型与LangGraph方案.py
+7. 记忆选型与 LangGraph 方案（DeepSeek + 最新 API）
+   主题：把「记忆」拆成三层，每层一个组件负责
+
+==============================================================
+1. 记忆分几类，边界在哪
+==============================================================
+  按「作用范围 + 存活时间」分，实际就这三层：
+
+  层         记什么                     用什么存                      存活      见
+  ------------------------------------------------------------------------------------------------
+  短期记忆      这一轮会话聊了什么               checkpointer + thread_id  会话内     本文件 demo_2/3
+  长期记忆      这个用户是谁、偏好是什么            Store + namespace         永久      本文件 demo_4/5
+  语义记忆      外部知识、文档、产品库             向量库 + RAG 检索              永久      runnable/2
+
+  ⚠️ 三个最容易搞混的点：
+
+  ① 「上下文管理」不属于记忆
+     裁剪、摘要改的是「这次发给模型的那一批消息」，
+     存储里的历史一条没少。所以它是第 1 层，跟第 2/3 层解耦。
+     老教材的 ConversationBufferWindowMemory 把这层和第 2 层
+     揉在一个类里（存的时候就丢），所以又难测试又难回滚。
+
+  ② 短期记忆是「全量」的，长期记忆是「结论」的
+     短期：每句话都留着，靠 thread_id 区分是哪次会话
+     长期：只存抽取出来的事实（用户画像、偏好），靠 namespace 区分归属
+     → 别把原始对话流水往 Store 里塞，那是短期记忆的活。
+
+  ③ 模型本身没有记忆
+     所谓「记住」全是你把历史文本重新发给它。
+     所以记忆的所有成本问题，本质都是 token 成本问题：
+       历史越长 → 每次请求 token 越多 → 越慢越贵 → 越容易超窗口
+
+  【Java 对照】
+     短期记忆 ≈ HttpSession，一次会话一份，会话结束就过期
+     长期记忆 ≈ 数据库里的 user_profile 表，永久，按 user_id 查
+     上下文管理 ≈ 分页/投影（Pageable），不改数据库，只改查出来多少
+
+==============================================================
+2. ⭐ 短期记忆：create_agent + checkpointer
+==============================================================
+  【核心思路】
+    历史不用自己管，交给 checkpointer：
+      · 对话历史作为「图的状态」保存
+      · 用 thread_id 区分是哪次会话（就是 session_id 的马甲）
+      · 每次 invoke 自动读出状态 → 执行 → 自动写回状态
+
+  【心智负担对比】
+     自己管：读历史 → 拼 prompt → 调模型 → 写回历史（4 步，每处都可能出错）
+     checkpointer：agent.invoke({...}, config={'configurable': {'thread_id': '1'}})
+
+  【实测】同一个 thread_id 连聊三轮：
+
+    第 1 轮  Q: 我叫yangzhenyu，记住这个名字
+            A: 好的，yangzhenyu，我记住了。
+            状态里累计 2 条消息
+    第 2 轮  Q: 我住在广州，有 9 年 Java 经验
+            A: 记住了：yangzhenyu，住广州，9年Java经验。
+            状态里累计 4 条消息
+    第 3 轮  Q: 我叫什么？住在哪里？
+            A: 你叫yangzhenyu，住在广州。
+            状态里累计 6 条消息
+
+  【换个 thread_id，短期记忆立刻隔离】
+    新会话问「我叫什么」 → 我不知道你的名字，你还没告诉我呀～
+    （答不出来才是对的——短期记忆只在本会话内有效）
+
+  【查看 checkpointer 里到底存了什么】
+    checkpointer 不只是「存消息」，它存的是整个图的状态快照。
+    用 get_state(config) 可以原样读出来，调试时非常有用：
+
+    thread_001 的快照：
+      · messages 数量  : 6
+      · checkpoint_id  : 1f1d35fe-09d2-688e-8...
+      · 下一步要执行的节点: ()
+      · 最后一条       : AIMessage: 你叫yangzhenyu，住在广州。
+
+    thread_002 的快照：messages 数量 = 2
+    （只有 2 条：user + ai，说明确实是独立的新会话）
+
+  【还能看历史版本（时间旅行）】
+    agent.get_state_history(config) 返回该 thread 的所有快照，
+    按时间倒序。想要「回到上一轮重新问」，把某个快照的 config
+    传给 invoke 就行——这是 LangGraph 独有的能力。
+
+  >> 注意：InMemorySaver 进程一重启就没了，只适合 demo 和单测。
+
+==============================================================
+3. 短期记忆持久化：换成 SqliteSaver
+==============================================================
+  生产环境不能重启就失忆。换 checkpointer 只要改一行：
+
+    InMemorySaver()                  →  SqliteSaver(conn)
+    其余代码（invoke / thread_id / get_state）**完全不用动**。
+    这就是把「存储」做成接口的好处——对上层透明。
+
+  ⚠️ 一个真实踩过的坑：
+    SqliteSaver.from_conn_string(path) 在 3.x 里是 @contextmanager，
+    直接赋值会拿到一个 _GeneratorContextManager，然后报
+    AttributeError: '...' object has no attribute 'put'。
+    正确写法是自己建连接再包一层：
+
+      conn = sqlite3.connect(path, check_same_thread=False)
+      saver = SqliteSaver(conn)
+
+    check_same_thread=False 必须加：LangGraph 可能在不同线程里用这个连接。
+
+  【实测】数据库文件：tmp\memory7_checkpoints.db
+    写入  Q: 我叫老王        A: 记住了，老王。
+    >> 关闭数据库连接（模拟服务重启）
+    重开  Q: 我叫什么名字？  A: 你叫老王。
+    ✅ 换了个全新的 agent 实例，照样答得出「老王」——历史在库里。
+    读回状态：messages 累计 4 条
+
+  【生产选型】checkpointer 的几种实现：
+
+    实现类                                           存储          适用场景                      本项目
+    --------------------------------------------------------------------------------------------
+    langgraph.checkpoint.memory.InMemorySaver     内存          demo / 单测 / 无状态服务         ✅ 已装
+    langgraph.checkpoint.sqlite.SqliteSaver       SQLite      单机部署、小项目、桌面应用             ✅ 已装
+    langgraph-checkpoint-postgres                 PostgreSQL  生产首选，支持多实例                ⬜ 按需
+    langgraph-checkpoint-redis                    Redis       要 TTL 自动过期、高并发            ⬜ 按需
+
+  >> 多实例部署时千万别用 InMemorySaver：
+     A 实例存的内存里，B 实例读不到，用户会「聊着聊着失忆」。
+
+==============================================================
+4. ⭐ 长期记忆：Store + ToolRuntime（跨会话）
+==============================================================
+  【场景】短期记忆只能活在一次会话里。
+  但「这个用户叫yangzhenyu、住在广州」这类事实，应该**跨所有会话**都记得。
+  这就是 Store（长期记忆）。
+
+  【怎么把 Store 给到工具】关键在 ToolRuntime：
+      @tool
+      def save_fact(fact: str, runtime: ToolRuntime) -> str:
+          runtime.store.put(...)
+
+  ⚠️ 坑：参数注解必须写 ToolRuntime，不能写 Runtime。
+     Runtime 是给「图节点 / 中间件」用的；给工具用的子类是 ToolRuntime，
+     它多了 state / config / tool_call_id / tools 这几个工具侧才有的字段。
+     写错成 Runtime 会直接崩：
+       pydantic.errors.PydanticInvalidForJsonSchema:
+       Cannot generate a JsonSchema for core_schema.IsInstanceSchema(BaseStore)
+     原因：工具的每个参数都要生成 JSON Schema 给模型看，
+     而 Runtime/BaseStore 不是「模型该填的参数」，pydantic 转不动。
+     ToolRuntime 继承 _DirectlyInjectedToolArg，框架会识别并
+     把它从 Schema 里摘掉——所以不需要 Annotated 包一层。
+
+  【实测】在 thread_A 里告诉 agent 两件事：
+
+    Q: 我叫yangzhenyu，住在广州
+    A: 记住了：你叫 yangzhenyu，住在广州。有什么可以帮你？
+    Q: 我有 9 年 Java 经验
+    A: 已记住：你有 9 年 Java 经验。需要我帮你做点什么吗？
+
+  Store 里的实际内容：
+      key=f0  value={'fact': '用户姓名：yangzhenyu'}
+      key=f1  value={'fact': '用户住在广州'}
+      key=f2  value={'fact': '用户有 9 年 Java 开发经验'}
+
+  【关键验证】换一个全新的 thread（全新会话）去问：
+
+    thread_B  Q: 你还记得我的什么信息？
+              A: 我记得以下三条信息：
+
+- 姓名：yangzhenyu
+- 居住城市：广州
+- 有 9 年 Java 开发经验
+
+需要补充或修改吗？
+
+  ✅ 短期记忆隔离了（thread_B 是空的），长期记忆共享了（事实还在）。
+     这就是两层分开的意义：
+       短期：这次聊到哪了  → 换会话就丢
+       长期：这个人是谁    → 换会话还在
+
+  【Java 对照】
+     ToolRuntime 注入 ≈ Spring 的 @Autowired / 方法参数注入：
+     你只声明「我要这个东西」，容器自动塞进来，函数签名里不用自己 new。
+     而且因为它带 InjectedToolArg 标记，不会被当成接口的入参（不进 Swagger）。
+
+==============================================================
+5. 长期记忆的 namespace 设计
+==============================================================
+  【namespace 是什么】
+    Store 是两层键：namespace（元组，可前缀匹配）+ key（字符串）。
+    类比 Java：namespace ≈ 表名 + 分区键，key ≈ 主键。
+
+  【怎么设计】最常用的是「主题 + 用户」：
+
+    ('facts', user_id)        → 用户画像
+    ('preferences', user_id)  → 偏好设置
+    ('history', user_id, ym)  → 按月归档
+    ('products',)             → 全局共享，不按用户分
+
+  ⚠️ 黄金规则：**跟用户相关的，namespace 里必须有 user_id**。
+    否则 A 用户的事实会被 B 用户读到——这是最常见的越权 bug。
+
+  【实测】三个操作：
+
+    ① 精确 namespace   search(('facts','u_alice'))
+       → ['Alice 喜欢咖啡']
+
+    ② 前缀匹配         search(('facts',))
+       → 命中 2 条，namespace 分别是 [('facts', 'u_alice'), ('facts', 'u_bob')]
+       （前缀匹配 = 传短的元组，等价于 SQL 的 LIKE 'facts%'）
+
+    ③ 单条精确读       get(('facts','u_bob'), 'name')
+       → Bob 喜欢茶
+       完整 Item: namespace=('facts', 'u_bob') key=name
+                 created_at=2026-10-29 06:13:46.275494+00:00  （Store 自动维护时间戳）
+
+    >> 如果 search 传空元组 ()，会列出所有 namespace，慎用。
+
+  【持久化】InMemoryStore 同样重启就没，生产要换实现：
+
+    from langgraph.store.sqlite import SqliteStore
+    with SqliteStore.from_conn_string(path) as store:   # 自动建表
+        store.put(...)
+
+    写库 → tmp\memory7_store.db
+    关掉再打开 → 仍读到：Alice 用 Java  ✅
+
+    ⚠️ 注意这里和 checkpointer 不一样：
+       Store  的 from_conn_string **是** 上下文管理器（要 with）
+       Saver  的 from_conn_string **也是** 上下文管理器（但我们不用它，
+              改成自己 sqlite3.connect 再包 SqliteSaver，见 demo_3）
+       两个地方行为不一致，是历史遗留，记住就行。
+
+  【Store 实现选型】
+
+    实现类                                         存储          适用场景                        本项目
+    --------------------------------------------------------------------------------------------
+    langgraph.store.memory.InMemoryStore        内存          demo / 单测                   ✅ 已装
+    langgraph.store.sqlite.SqliteStore          SQLite      单机、小项目                      ✅ 已装
+    langgraph-store-postgres                    PostgreSQL  生产首选，支持向量检索                 ⬜ 按需
+
+    >> Store 还能配 index_config 做语义检索（传 embeddings 进去），
+       那时它就同时是「长期记忆 + 语义记忆」，适合事实条目多的场景。
+
+==============================================================
+6. 上下文管理：官方给了三个现成中间件
+==============================================================
+  历史越攒越长，不可能每次全发。LangChain 已经把三种策略做好了，
+  不用自己写中间件：
+
+  中间件                         策略      做什么                         代价              什么时候用
+  ----------------------------------------------------------------------------------------------------
+  TrimMessagesMiddleware      硬裁剪     砍掉最早的 N 条，保留最近              丢信息             最省事、最可控
+  SummarizationMiddleware     摘要      超阈值就把老的压成一段摘要               多花一次调用          不想丢信息
+  ContextEditingMiddleware    编辑      按规则改写/删除特定消息                要配规则            精细控制
+
+  【实测】这三个中间件确实存在（import 探活）：
+      ✅ SummarizationMiddleware   langchain.agents.middleware.summarization
+      ✅ ContextEditingMiddleware  langchain.agents.middleware.context_editing
+      ✅ TrimMessagesMiddleware    在 memory/4 里我们自己实现过
+
+  【裁剪策略本身是个纯函数，可以单独测】
+    trim_messages() 不依赖 agent、不依赖存储，
+    输入一个 list[Message]，输出一个 list[Message]：
+
+      原始 17 条 → 裁剪后 8 条
+      第一条仍是: SystemMessage「你是助手」
+      最后一条:   AIMessage「第 8 轮回答：一些回复」
+
+  【关键点】裁剪 vs 摘要，改的东西不一样：
+
+      wrap_model_call  只改「发给模型的那一批」→ 存储里历史不变
+      before_model     返回状态更新          → 存储里历史真的被改了
+
+      想要「省钱但不丢历史」→ 用 wrap_model_call（memory/4 的做法）
+      想要「存储也瘦身」  → 用 before_model 或 SummarizationMiddleware
+
+      这也是纯函数的好处：裁剪逻辑不碰 IO，单元测试秒过。
+
+  【Java 对照】
+     wrap_model_call ≈ 装饰器/拦截器：包装调用，不改被包装对象
+     before_model   ≈ Filter 里改 request：状态真的被改写了
+
+==============================================================
+7. 最终选型表
+==============================================================
+  【新项目怎么选】
+
+  需求                            用什么                               见
+  ----------------------------------------------------------------------------------------
+  只是个问答机器人，要记住上下文               create_agent + checkpointer       本文件 demo_2
+  要跨会话记住用户画像/偏好                 Store + ToolRuntime               本文件 demo_4
+  历史太长，token 太贵                 TrimMessagesMiddleware            memory/4
+  老信息不能丢，但要省钱                   SummarizationMiddleware           本文件 demo_6
+  要检索大量外部知识                     向量库 + RAG（不是记忆组件）                 runnable/2
+  单机部署，重启不能失忆                   SqliteSaver / SqliteStore         本文件 demo_3/5
+  多实例生产部署                       Postgres checkpointer + Store     本文件 demo_3
+
+  【老教材迁移对照】如果你看过旧版教材，这些名字都变了：
+
+  老名字                               现在用什么                                       见
+  ------------------------------------------------------------------------------------------------
+  ConversationBufferMemory          create_agent + checkpointer                 本文件 demo_2
+  ConversationBufferWindowMemory    TrimMessagesMiddleware                      memory/4
+  ConversationTokenBufferMemory     trim_messages(max_tokens=...)               memory/4
+  ConversationSummaryBufferMemory   SummarizationMiddleware                     本文件 demo_6
+  ConversationEntityMemory          Store + ToolRuntime                         本文件 demo_4
+  RunnableWithMessageHistory        create_agent + checkpointer（⚠️ 前者已废弃）       memory/3
+  LLMChain                          prompt | llm | parser（LCEL）                 runnable/1
+
+  【一句话总结】
+    · 记忆不是一个组件，是三层架构：上下文管理 / 短期 / 长期
+    · 短期靠 checkpointer + thread_id，长期靠 Store + namespace
+    · 上下文管理是纯函数/中间件，跟存储解耦，随便换
+    · 老教材那些 Memory 类不用再学了，记住上面的迁移表就够
+    · 新项目直接上 create_agent，别再用 RunnableWithMessageHistory
+
+  【判断你现在的代码有没有用对】
+    ❌ 还在 new ConversationBufferMemory()      → 老 API，换 checkpointer
+    ❌ 自己读写 list[Message] 再拼 prompt        → 交给 checkpointer
+    ❌ 把完整对话流水往 Store 里塞                → 那是短期记忆的活
+    ❌ 多实例部署还在用 InMemorySaver             → 一定会串会话
+    ✅ checkpointer 存会话、Store 存事实、中间件控上下文 → 对的
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

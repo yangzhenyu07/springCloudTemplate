@@ -1,0 +1,79 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\memory\2.持久化历史存储.py
+2. 持久化历史存储（最新 API，无需 API key）
+   教材：old/ChatMessageHistory组件上手与源码解析/2.*
+
+==============================================================
+1. 写进文件，再读出来
+==============================================================
+文件位置: E:\work\llmops\test\aiLearn\memory\_history_demo\muxiaoke.json
+文件是否存在: True
+
+文件内容（这就是持久化的真面目，就是个 JSON 数组）：
+  [
+    {
+      "type": "human",
+      "data": {
+        "content": "你好，我是yangzhenyu，你是谁？",
+        "additional_kwargs": {},
+        "response_metadata": {},
+        "type": "human",
+        "name": null,
+        "id": null
+      }
+    },
+  ...
+
+重新读出来（模拟程序重启）：
+  [HumanMessage] 你好，我是yangzhenyu，你是谁？
+  [AIMessage] 你好yangzhenyu，我是智能助手！
+  [HumanMessage] 我住在广州
+
+>> 关键点：重新 new 一个对象，数据还在——这就是持久化的意义。
+
+==============================================================
+2. 多会话隔离：一个 session 一个文件
+==============================================================
+
+  [user_a] 的历史：
+    [HumanMessage] 我叫yangzhenyu，我喜欢打篮球
+    [AIMessage] 好的，记住你喜欢篮球
+
+  [user_b] 的历史：
+    [HumanMessage] 我叫taoyutian，我喜欢游泳
+    [AIMessage] 好的，记住你喜欢游泳
+
+  磁盘上的文件： ['muxiaoke.json', 'user_a.json', 'user_b.json']
+
+>> 多会话隔离的本质：**给每个会话一个独立的 key**（这里是文件名）。
+   换成 Redis 就是 key = chat:{session_id}；换成 MySQL 就是 where session_id = ?
+
+==============================================================
+3. 生产环境有哪些现成实现
+==============================================================
+
+  选型建议（按场景）：
+   · 纯 LCEL 链、简单项目     → 自己实现（本文件这样）或 RedisChatMessageHistory
+   · 用 agent                 → LangGraph checkpointer（见第 7 个文件，官方推荐）
+   · 要跨会话的长期记忆        → LangGraph Store（langgraph.store）
+
+  ⚠️ 生产必做的三件事（教学版没做）：
+   ① 加锁 / 原子写：并发下「读-改-写」会丢消息
+   ② 设过期：Redis 用 TTL，别让历史无限增长
+   ③ 裁剪上限：历史太长要 trim（见第 4 个文件）
+
+==============================================================
+4. 实测：文件写坏了会怎样
+==============================================================
+  故意写入非法 JSON，然后读 messages：
+   读到: []
+   是否正常返回: True
+
+  >> 因为 messages 里做了 try/except JSONDecodeError 兜底，
+     损坏时退化成空历史，不会让整个服务崩掉。
+     这是**防御性编程**：宁可丢历史，也不要 500。
+
+==============================================================
+全部示例执行完毕。演示文件留在: E:\work\llmops\test\aiLearn\memory\_history_demo
+下一个：3.RunnableWithMessageHistory.py（这组最核心的一个）
+
+进程已结束，退出代码为 0

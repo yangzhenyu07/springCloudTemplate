@@ -1,0 +1,111 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\runnableModule\1.bind绑定默认参数.py
+1. bind 绑定默认参数（DeepSeek + 最新 API）
+   教材：old/Runnable组件动态添加默认调用参数/*
+
+==============================================================
+1. 用途一：给模型预置调用参数
+==============================================================
+  【不 bind】        输出 728 字
+    Redis 是一个开源的、基于内存的高性能键值数据库，常被用作缓存、消息中间件和轻量级数据存储。它的主要特点包括：
+
+1. **高性能**：
+
+  【bind(temperature=0)】输出 674 字
+    Redis 是一个开源的高性能键值数据库，常被用作缓存、消息中间件和轻量级数据存储。它的主要特点包括：
+
+1. **性能极高**：数据主要存
+
+  【bind(max_tokens=20)】输出 868 字
+    Redis（Remote Dictionary Server）是一个开源的、基于内存的高性能键值型 NoSQL 数据库，常用于缓存、会话存储
+
+  ⚠️【DeepSeek 实测坑】max_tokens **不限制输出长度**！
+     同一条 prompt 分别用 None / 60 / 20 各跑一次，
+     输出长度和设置值**毫无相关性**（实测几百到一千字不等）。
+     原因：DeepSeek 的思考(reasoning) token 是单独计的，
+     且厂商侧似乎没有对正文做硬截断。
+     → 想控制长度，只能靠**提示词里写「不超过 N 字」**，别指望 max_tokens。
+
+  常用可 bind 的调用参数：
+    max_tokens     限制输出长度 ⚠️ 实测 DeepSeek 上不生效
+    temperature    控制随机性
+    stop           遇到指定字符串就停
+    tools / tool_choice   绑定工具（做 tool calling 时的标准做法）
+    extra_body     传给厂商的私有参数
+          比如 DeepSeek 关思考：extra_body={'thinking': {'type': 'disabled'}}
+
+  >> bind 的是「调用时的参数」，不是「构造时的字段」。
+     这也是它和 ChatOpenAI(temperature=0) 的区别：
+     · 构造时传 = 写死在对象上
+     · bind     = 包一层，原对象还能复用
+
+==============================================================
+2. 用途二【核心】：让多参函数能进管道
+==============================================================
+  【不 bind】直接放进管道会怎样：
+    TypeError: demo_2_bind_lambda_multiple_args.<locals>.get_weather() missing 2 required positional argu
+
+  【bind 之后】
+    慕小课你好，广州今天的天气是 24摄氏度
+    慕小课你好，深圳今天的天气是 29摄氏度
+
+  原理（等价于手写一层闭包）：
+    RunnableLambda(get_weather).bind(unit='摄氏度', name='慕小课')
+    ≈ RunnableLambda(lambda loc: get_weather(loc, '摄氏度', '慕小课'))
+
+  >> 这就是教材说的「bind 解决 RunnableLambda 函数多参场景」。
+     真实场景：函数需要数据库连接、用户上下文、配置开关这些
+     「每次调用都一样」的参数，就非常适合用 bind 先喂进去。
+
+==============================================================
+3. bind 之后照样能进 LCEL 管道
+==============================================================
+   请参考产品文档库中“怎么重置密码”的相关结果1和2。
+
+  >> bind + 闭包工厂 是 LangChain 里非常常见的组合：
+     闭包工厂负责「造出不同配置的组件」，bind 负责「把配置喂进去」。
+
+==============================================================
+4. ⚠️ 坑一：bind 不做校验，参数名写错调用时才炸
+==============================================================
+  bind(model='gpt-4o') 之后调用（DeepSeek 没有这个模型）：
+
+   异常类型: OpenAIInvalidRequestError
+   异常信息: Error code: 400 - {'error': {'message': 'The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed gpt-4o. (request_id: 54946a
+
+  >> bind 的时候**完全不校验**——它只是把参数存下来，
+     真正发出请求时厂商才会报错。
+     所以 bind 的参数名一定要对着文档写，IDE 补全不一定可靠。
+
+==============================================================
+5. ⚠️ 坑二：bind 是覆盖，不是合并
+==============================================================
+  第一次 bind(temperature=0.9): 收到的 temperature = 0.9
+  再 bind(temperature=0.1)   : 收到的 temperature = 0.1
+
+  >> 后 bind 的**覆盖**先 bind 的，不是追加。
+     想合并就得自己把参数攒好再一次性 bind。
+
+  另外：bind 对 RunnableParallel 这种「字典参数」要小心——
+     如果上游传的字典里也有同名 key，行为取决于实现，
+     建议 bind 的 key 和上游字段**不要重名**。
+
+==============================================================
+6. bind 什么时候用，什么时候别用
+==============================================================
+  方式                        写法                                什么时候用
+  ----------------------------------------------------------------------------------------
+  构造时传参                     ChatOpenAI(temperature=0)         这个配置全局固定，不会变
+  bind                      llm.bind(temperature=0)           同一条链里不同分支要不同配置
+  partial                   prompt.partial(...)               预填的是**提示词变量**，不是调用参数
+  configurable_fields       见第 2 个文件                          要**运行时**动态改（不是写死）
+  configurable_alternatives 见第 3 个文件                          要**运行时**换掉整个组件
+
+  ⚠️ 最容易混的是 bind 和 partial：
+     bind    改的是「调用模型时发的参数」 → temperature / max_tokens / stop
+     partial 改的是「提示词里的占位符」   → prompt 里的 {name} 之类
+     两者作用的对象完全不同。
+
+==============================================================
+全部示例执行完毕。下一个：2.configurable_fields运行时改字段.py
+
+进程已结束，退出代码为 0

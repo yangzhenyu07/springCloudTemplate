@@ -1,0 +1,166 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\memory\4.上下文裁剪trim_messages.py
+4. 上下文裁剪 trim_messages（DeepSeek + 最新 API）
+   教材：old/LangChain缓冲记忆组件的使用与解析/1.*
+
+==============================================================
+1. trim_messages 基本用法
+==============================================================
+
+  裁剪前（共 21 条）：
+    [SystemMessage] 你是一个贴心的助手，回答用中文。
+    [HumanMessage] 第 1 轮：我想了解一下第 1 号话题的详细内容和背景
+    [AIMessage] 第 1 轮回复：关于第 1 号话题，这里有一段比较长的说明文字给你参
+    [HumanMessage] 第 2 轮：我想了解一下第 2 号话题的详细内容和背景
+    ... 省略 17 条
+    [HumanMessage] 第 10 轮：我想了解一下第 10 号话题的详细内容和背景
+    [AIMessage] 第 10 轮回复：关于第 10 号话题，这里有一段比较长的说明文字给
+
+  裁剪后（max_tokens=120, strategy=last）（共 9 条）：
+    [SystemMessage] 你是一个贴心的助手，回答用中文。
+    [HumanMessage] 第 7 轮：我想了解一下第 7 号话题的详细内容和背景
+    [AIMessage] 第 7 轮回复：关于第 7 号话题，这里有一段比较长的说明文字给你参
+    [HumanMessage] 第 8 轮：我想了解一下第 8 号话题的详细内容和背景
+    ... 省略 5 条
+    [HumanMessage] 第 10 轮：我想了解一下第 10 号话题的详细内容和背景
+    [AIMessage] 第 10 轮回复：关于第 10 号话题，这里有一段比较长的说明文字给
+
+  参数含义：
+    max_tokens      上限（token 数）
+    token_counter   怎么数 token
+    strategy        'last' 保留最近的 / 'first' 保留最早的
+    include_system  是否保留开头的 system 消息 ⚠️ 默认 False
+    allow_partial   允许把一条消息截断一半（默认 False，要么整条留要么整条丢）
+
+  >> trim_messages 是**纯函数**：输入 list，输出 list，不改原对象。
+     （Java 视角：类似 Collections.unmodifiableList 那类工具方法，无副作用）
+
+==============================================================
+2. ⚠️ include_system 默认 False，会把人设丢掉
+==============================================================
+  不写 include_system：
+    第 1 条是 AIMessage → 第 6 轮回复：关于第 6 号话题，这里有一段比较长的说明文
+    系统提示词还在吗: False
+
+  写了 include_system=True：
+    第 1 条是 SystemMessage → 你是一个贴心的助手，回答用中文。
+    系统提示词还在吗: True
+
+  ⚠️ 这是最隐蔽的坑：不报错、不警告，只是模型突然「忘了自己是谁」。
+     表现是人设丢失、语气变了、答非所问，很难联想到是裁剪导致的。
+     **生产代码里显式写 include_system=True。**
+
+--------------------------------------------------------------
+  strategy 对比：
+    strategy='last'  → 保留最后几条，末尾是: 第 10 轮回复：关于第 10 号话题，这里有一
+    strategy='first' → 保留最前几条，末尾是: 第 5 轮：我想了解一下第 5 号话题的详细内容
+
+  >> 对话场景几乎都用 'last'：用户关心的是最近说了什么。
+     'first' 适合「开头有重要设定」的场景（比如一段固定的任务说明）。
+
+  ⚠️ 实测再踩一个坑：include_system 配 strategy='first' 会直接报错
+    ValueError: include_system parameter is only valid with strategy='last'
+    原因很好理解：strategy='first' 本来就是从头保留，
+    系统消息必然在里面，再单独说「要保留 system」就没意义了。
+
+==============================================================
+3. 进阶参数：allow_partial / end_on / start_on
+==============================================================
+  max_tokens=40 时（每条原文约 154 字符）：
+    allow_partial=False → 1 条，各条长度 [4]
+    allow_partial=True  → 2 条，各条长度 [4, 97]
+    被切开的那条内容: d word word word word word word word word word ...
+
+  ⚠️ 实测结论：allow_partial **必须配合 text_splitter 才生效**，
+     只写 allow_partial=True 结果和不写完全一样（我第一次也以为它坏了）。
+  >> 开 partial 能塞得更满，但会切出半句话，一般不开。
+
+  end_on=HumanMessage → 8 条，最后一条是 HumanMessage
+
+  用法小结：
+    end_on=HumanMessage   结尾必须是用户消息（最常用）
+    end_on=[HumanMessage, SystemMessage]  结尾是这几种之一都行
+    start_on=HumanMessage 开头必须是用户消息
+  >> 这两个参数是为了保证裁剪后的历史**结构合法**，
+     否则可能出现「AI 消息孤零零在最后」这种畸形上下文。
+
+==============================================================
+4. 另外两个常用工具：filter_messages / merge_message_runs
+==============================================================
+  merge_message_runs: 6 条 → 4 条
+    [SystemMessage] 你是助手
+    [HumanMessage] 我叫yangzhenyu
+我住在广州
+    [AIMessage] 你好
+很高兴认识你
+    [HumanMessage] 我喜欢打篮球
+  >> 合并能省 token，也能让上下文更干净。
+
+  filter_messages(include_types=[HumanMessage]) → 3 条
+  filter_messages(exclude_types=[SystemMessage]) → 5 条
+  filter_messages(exclude_names=['yangzhenyu']) → 6 条
+
+  常见用途：
+    · 把 tool 调用消息过滤掉再展示给用户看
+    · 只保留 human/ai，丢掉 system（做摘要时常用）
+    · 按 name 区分多智能体（谁说的）
+
+==============================================================
+5. 实战：裁剪 + checkpointer 组合（最新 API）
+==============================================================
+  老写法是 RunnableWithMessageHistory + RunnablePassthrough.assign，
+  那两个都已废弃。现在这么搭：
+
+    class TrimMessagesMiddleware(AgentMiddleware):
+        def wrap_model_call(self, request, handler):
+            trimmed = trim_messages(request.messages, ...)
+            return handler(request.override(messages=trimmed))   # <- override
+
+    agent = create_agent(
+        model=llm,
+        checkpointer=InMemorySaver(),              # 记忆
+        middleware=[TrimMessagesMiddleware(60)],    # 裁剪
+    )
+
+  ⚠️ 三个实测踩到的点：
+    ① request.messages = xxx 已废弃 → 用 request.override(messages=...)
+    ② 别用 before_model 做裁剪 → 它返回的 state 更新会改存储
+    ③ langgraph 的 create_react_agent 也已废弃 → 用 langchain.agents.create_agent
+
+  连聊 5 轮，观察「存储条数」vs「送进模型的条数」：
+
+    [裁剪中间件] 存储 1 条 → 送进模型 1 条
+  第 1 轮  存储 2 条 → 送进模型 1 条
+          Q: 我叫yangzhenyu，记住这个名字
+          A: 好的，yangzhenyu。本次对话中我会记住这个名字；但我无法跨对话长期记忆。
+    [裁剪中间件] 存储 3 条 → 送进模型 3 条
+  第 2 轮  存储 4 条 → 送进模型 3 条
+          Q: 我住在广州，是一座很热闹的城市
+          A: 记住了：yangzhenyu，住在热闹的广州。
+    [裁剪中间件] 存储 5 条 → 送进模型 5 条
+  第 3 轮  存储 6 条 → 送进模型 5 条
+          Q: 我喜欢打篮球，也喜欢游泳，还喜欢跑步
+          A: 记住了：yangzhenyu 住在广州，喜欢打篮球、游泳和跑步。
+    [裁剪中间件] 存储 7 条 → 送进模型 5 条
+  第 4 轮  存储 8 条 → 送进模型 5 条
+          Q: 我最喜欢的编程语言是 Java，已经写了九年了
+          A: 记住了：yangzhenyu 最喜欢的编程语言是 Java，已经写了九年。
+    [裁剪中间件] 存储 9 条 → 送进模型 5 条
+  第 5 轮  存储 10 条 → 送进模型 5 条
+          Q: 我平时喜欢喝美式咖啡
+          A: 记住了：yangzhenyu 平时喜欢喝美式咖啡。
+
+  最后一轮结束时：
+    checkpointer 里完整历史: 10 条（一直都在，没丢）
+    实际送进模型: 5 条
+
+  >> 关键理解：裁剪只影响送给模型的内容，不动存储。
+     所以用户看到的「历史记录」仍是完整的，只是模型看不到那么早的内容。
+     这也是为什么裁剪比「直接删历史」更安全。
+
+     对比一下：如果用 before_model 返回裁剪结果，
+     存储会真的被改小 —— 那就不是裁剪，是删历史了。
+
+==============================================================
+全部示例执行完毕。下一个：5.摘要记忆.py
+
+进程已结束，退出代码为 0

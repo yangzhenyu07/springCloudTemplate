@@ -1,0 +1,117 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\callable\astream_events事件流.py
+3. astream_events 事件流（DeepSeek + 最新 API）
+
+==============================================================
+1. 完整事件流：一次调用会吐出哪些事件
+==============================================================
+  实测统计（一次调用产生的事件）：
+    on_chain_end             x1
+    on_chain_start           x1
+    on_chain_stream          x112
+    on_chat_model_end        x1
+    on_chat_model_start      x1
+    on_chat_model_stream     x112
+    on_parser_end            x1
+    on_parser_start          x1
+    on_parser_stream         x112
+    on_prompt_end            x1
+    on_prompt_start          x1
+
+  >> 事件名的规律：on_<组件>_<阶段>
+     组件：chain / prompt / chat_model / parser / tool / retriever
+     阶段：start / stream / end / error
+  >> on_chat_model_stream 数量最多——模型是一个字一个字吐的
+
+==============================================================
+2. 单个事件长什么样
+==============================================================
+  事件的顶层字段: ['data', 'event', 'metadata', 'name', 'parent_ids', 'run_id', 'tags']
+
+    event     : on_chat_model_start
+    name      : ChatOpenAI
+    run_id    : 01a181d0-fc2c-7ef1-814a-b41b6aee020d
+    tags      : ['seq:step:2']
+    data 键    : ['input']
+
+  各字段含义：
+    event     事件类型（用来判断这是哪一步）
+    name      组件名（RunnableSequence / ChatOpenAI 等）
+    run_id    本次运行的唯一 ID，父子链路靠 parent_ids 串起来
+    data      真正的数据，不同事件的 data 结构不同
+    tags      可以给链打标签，用来过滤
+
+==============================================================
+3. 实战：只取模型流式输出做打字机
+==============================================================
+  实时输出: Apache Kafka 是一个高吞吐、可持久化、分布式的消息队列与流处理平台，常用于实时数据管道和事件驱动架构。
+
+  非空片段 29 个，空片段 81 个
+
+  ⚠️ 注意那些【空片段】：那是 DeepSeek 的思考(reasoning)阶段，
+     模型在后台打草稿，不吐正文。这一点和 model/3 里的发现一致。
+  >> 做前端时要先显示「思考中...」，否则用户以为卡住了。
+
+==============================================================
+4. 实战：取最终输出 + token 用量
+==============================================================
+  最终输出: Nginx 是一款高性能、开源的事件驱动 Web 服务器和反向代理服务器，常用于静态资源服务、负载均衡、HTTP 缓存和 API 网关。
+  token 用量: {'input_tokens': 35, 'output_tokens': 88, 'total_tokens': 123, 'input_token_details': {'cache_read': 0}, 'output_token_details': {'reasoning': 54}}
+    输入 35 / 输出 88 / 合计 123
+
+  >> 对比：用回调要继承类、实现 on_llm_end；
+     这里只要判断 event['event'] == 'on_chat_model_end' 就行。
+
+==============================================================
+5. 实战：嵌套链路里区分每一步
+==============================================================
+  【踩坑写法】只用 name == RunnableSequence 判断：
+
+    第 1 次模型调用（组件: ChatOpenAI）
+    chain 结束 -> Distributed locks must prevent deadl
+    第 2 次模型调用（组件: ChatOpenAI）
+    chain 结束 -> 分布式锁必须防止死锁。
+
+  ⚠️ 问题：step1、step2、整条链 都叫 RunnableSequence，
+     上面打印了好几次「chain 结束」，根本分不清哪个才是最终结果。
+
+  【解法一】给每个组件起名字（推荐，最直观）：
+
+    第 1 次模型调用
+    [① 翻译] 完成 -> Distributed locks must prevent deadlocks
+    第 2 次模型调用
+    [② 总结] 完成 -> 分布式锁必须避免死锁。
+    [整条链] 完成 -> 分布式锁必须避免死锁。
+
+  >> with_config(run_name='xxx') 只是加了个标签，不改任何逻辑，
+     但在事件流 / LangSmith 追踪里能救命——复杂链路必备。
+
+  【解法二】不想改名？用 parent_ids 判断是不是最外层：
+
+    根链结束，这才是最终结果: 分布式锁必须防止死锁。
+
+  共发生 2 次模型调用
+  >> 用回调也能统计，但事件流写起来更直观、不用继承类。
+  >> parent_ids 是祖先 run_id 列表，越外层越短，根链为空 []。
+
+==============================================================
+6. 回调 vs 事件流，怎么选
+==============================================================
+  维度            回调 BaseCallbackHandler          事件流 astream_events
+  ------------------------------------------------------------------------------
+  写法            继承类 + 重写方法                      async for 遍历，if 判断
+  适用链路          同步 / 异步都行                       仅异步（astream_events）
+  拿中间结果         比较绕                             直接取 event['data']
+  嵌套链路          靠 run_id 自己串                    parent_ids 自动关联
+  对接监控平台        LangSmith 就用这个                  也能对接，常用于前端推送
+  学习成本          要记住一堆方法名                        记住事件名规律即可
+
+  选型建议：
+   · 做日志/监控/计费这类「旁路」需求     → 回调（更轻，同步异步都能用）
+   · 做流式 UI、进度条、要中间结果     → 事件流（信息最全）
+   · 新项目、全异步架构               → 优先事件流
+   · 要接入 LangSmith 做追踪          → 回调（官方集成方式）
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

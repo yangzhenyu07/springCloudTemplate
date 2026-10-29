@@ -1,0 +1,119 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\callable\回调功能使用技巧.py
+1. 回调功能使用技巧（DeepSeek + 最新 API）
+
+==============================================================
+1. 基本用法：config={'callbacks': [...]}
+==============================================================
+调用时把处理器塞进 config：
+  ▶ 模型开始执行
+    模型配置里的 id: ['langchain', 'chat_models', 'openai', 'ChatOpenAI']
+    本次消息数: 1
+  ■ 模型执行结束，耗时 1.80s
+    token 用量: 输入 39 / 输出 105 / 合计 144
+
+  最终结果: Redis 是一个开源的高性能内存键值数据库，支持多种数据结构，常用于缓存、会话 ...
+
+==============================================================
+2. 新版推荐：with_config 绑定，一次生效
+==============================================================
+连续调用两次，回调都会自动生效：
+
+  提问: 用一句话介绍 Kafka
+  ▶ 模型开始执行
+    模型配置里的 id: ['langchain', 'chat_models', 'openai', 'ChatOpenAI']
+    本次消息数: 1
+  ■ 模型执行结束，耗时 1.76s
+    token 用量: 输入 39 / 输出 165 / 合计 204
+  回答: Apache Kafka 是一个开源的分布式事件流平台，能以高吞吐、可 ...
+
+  提问: 用一句话介绍 Nginx
+  ▶ 模型开始执行
+    模型配置里的 id: ['langchain', 'chat_models', 'openai', 'ChatOpenAI']
+    本次消息数: 1
+  ■ 模型执行结束，耗时 1.54s
+    token 用量: 输入 40 / 输出 97 / 合计 137
+  回答: Nginx 是一款高性能的开源 Web 服务器和反向代理服务器，常用于 ...
+
+  >> 对比：用 config 传要每次都写一遍，容易漏。
+  >> 生产建议：链路组装完成时统一 with_config 一次。
+
+==============================================================
+3. ⚠️ 坑：on_chat_model_end 不会被调用
+==============================================================
+  直觉上，既然有 on_chat_model_start，就该有 on_chat_model_end。
+  实测：BaseCallbackHandler 里【根本没有】on_chat_model_end 这个钩子。
+
+  实际存在的 on_* 钩子（共 20 个）：
+    on_agent_action             on_agent_finish
+    on_chain_end                on_chain_error
+    on_chain_start              on_chat_model_start
+    on_custom_event             on_llm_end
+    on_llm_error                on_llm_new_token
+    on_llm_start                on_retriever_end
+    on_retriever_error          on_retriever_start
+    on_retry                    on_stream_event
+    on_text                     on_tool_end
+    on_tool_error               on_tool_start
+
+  >> 所以模型结束要监听的是 on_llm_end，不是 on_chat_model_end。
+  >> 如果你写了 def on_chat_model_end(...)，它【永远不会被调用】，
+     而且不报任何错——静默失效，特别难排查。
+
+  >> 混淆来源：astream_events 事件流里确实有 'on_chat_model_end' 事件，
+     但那是事件流的事件名，和回调 handler 的方法名是两套东西。
+     详见 3.astream_events事件流.py
+
+  实测验证：
+    ✅ on_llm_end 被调用了（这个才是生效的）
+    （上面如果只出现 on_llm_end，就印证了 on_chat_model_end 无效）
+
+==============================================================
+4. 内置的 StdOutCallbackHandler（调试神器）
+==============================================================
+  它会把链路每一步的出入参都打到标准输出，调试时非常好用。
+  下面只跑一次，输出会比较长：
+
+
+
+> Entering new RunnableSequence chain...
+
+
+> Entering new ChatPromptTemplate chain...
+
+> Finished chain.
+
+
+> Entering new StrOutputParser chain...
+
+> Finished chain.
+
+> Finished chain.
+
+  >> 输出格式是 '> Entering new XXX chain...' / '> Finished chain.'，
+     能看到 RunnableSequence → ChatPromptTemplate → StrOutputParser 的嵌套层次。
+  >> 注意两点：
+     1. 它只打印【链】的进出，模型层的细节要靠 on_llm_* 钩子自己实现
+     2. 生产环境别开——会把用户输入原样打进日志，有隐私问题
+
+==============================================================
+5. 回调的三种绑定方式
+==============================================================
+  ① 调用时传（最灵活，也最容易漏）
+     chain.invoke(x, config={'callbacks': [h]})
+     适合：临时给某一次调用加监控
+
+  ② with_config 绑定到链（推荐）
+     chain = chain.with_config(callbacks=[h])
+     适合：整条链路统一加监控
+
+  ③ 构造模型时传
+     ChatOpenAI(..., callbacks=[h])
+     适合：只想监控模型层，不关心链的其他部分
+
+  优先级：三者可以叠加，都会执行。
+  继承性：父链的回调会自动传给子链（所以绑在顶层就能覆盖全链路）。
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

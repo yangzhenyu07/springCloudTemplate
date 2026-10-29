@@ -1,0 +1,232 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\tool\6.Agent与工具实战.py
+6. Agent 与工具实战（DeepSeek + 最新 API）
+
+==============================================================
+1. 为什么要有 Agent —— 手写循环 vs create_agent
+==============================================================
+  第 4 个文件里我们手写的闭环（简化版）：
+
+    messages = [HumanMessage(q)]
+    while True:
+        ai = llm_with_tools.invoke(messages)
+        messages.append(ai)
+        if not ai.tool_calls:      # 模型不再要工具了，结束
+            break
+        for call in ai.tool_calls: # 执行工具
+            result = TOOLS_BY_NAME[call['name']].invoke(call['args'])
+            messages.append(ToolMessage(content=result, tool_call_id=call['id']))
+
+  这段代码有 5 个坑，你自己写迟早要踩：
+    ① 死循环：模型一直调工具怎么办？         → 要加轮数上限
+    ② 工具报错：整个链崩了                   → 要 try/except 转给模型
+    ③ 并行调用：for 循环是串行的，慢          → 要线程池
+    ④ 多轮对话：messages 自己存               → 要 checkpointer
+    ⑤ 想加中间件：没地方插                    → 要 hook 点
+
+  create_agent 就是把上面这些全包了：
+
+    agent = create_agent(
+        model=llm,
+        tools=[...],          # 工具集
+        system_prompt='...',  # 人设
+        checkpointer=InMemorySaver(),  # 多轮记忆
+        middleware=[...],     # 重试/限流/工具筛选
+    )
+    res = agent.invoke({'messages': [{'role': 'user', 'content': q}]})
+
+  【Java 对照】
+     手写循环 ≈ 自己 new Thread + while(true) 消费队列
+     create_agent ≈ 提交给 ExecutorService / 状态机：
+         声明式配置，调度、重试、状态持久化由框架负责
+
+==============================================================
+2. 最小可用 Agent（工具自动闭环）
+==============================================================
+  用户: 订单 SO001 到哪了？顺便算一下 2kg 寄到 300km 外运费多少
+
+  完整消息轨迹（这就是 Agent 内部的执行过程）：
+    HumanMessage 订单 SO001 到哪了？顺便算一下 2kg 寄到 300km 外运费多少
+    AIMessage    要求调: ['logistics_track', 'calc_shipping_fee']
+    ToolMessage  订单 SO001：已到达【广州转运中心】，预计明天 18:00 前送达
+    ToolMessage  运费：41.00 元（重量 2.0kg，距离 300.0km）
+    AIMessage    两件事都查好了：
+
+**📦 订单 SO001 物流**
+- 当前状态：已到达【广州转运中心】
+- 预计送达：明天 18:
+
+  最终回复: 两件事都查好了：
+
+**📦 订单 SO001 物流**
+- 当前状态：已到达【广州转运中心】
+- 预计送达：明天 18:00 前
+
+**🚚 运费计算（2kg / 300km）**
+- 运费：**41.00 元**
+- 明细：起步价 8 元
+
+  >> 注意两点：
+     ① 我们**一行循环都没写**，工具是框架自动执行的
+     ② 两个工具是**一次性并行**发起的（模型单次返回 2 个 tool_call）
+
+==============================================================
+3. Agent 里怎么判断击中哪个能力域
+==============================================================
+  6 种手法的通用原理见 5.工具分组与路由判断.py，这里只讲 **agent 场景的差异**。
+  agent 和手写循环最大的不同：工具是框架自动执行的，你看不到那个 `while` 循环。
+  所以最自然的是「事后扫轨迹」和「挂回调」这两种。
+
+  用户: 买的键盘能退吗？另外帮我算算 100 万贷款 30 年、利率 4.5% 的月供
+
+  ① 事后扫 messages → 击中能力域: ['售后', '金融']
+     这是 agent 场景下最常用的一招：返回的 messages 是全量轨迹，
+     里面已经记着每次 tool_calls，扫一遍就得到结果。
+
+  ② 回调统计        → {'售后': 1, '金融': 1}
+     回调能直接拿到「次数」；扫 messages 拿到的是列表，还要自己计数。
+
+  >> 为什么这里不演示流式事件（astream_events）？
+     能用，agent.astream_events 同样会吐 on_tool_start（见文件 5 的方法③）。
+     但它适合「实时推给前端」，拿来做统计/审计反而绕，所以不重复写。
+
+  >> 两招本质一样：**工具名 → 反查表 → 域名**
+     所以 TOOL_TO_DOMAIN 那张表是关键，必须维护对。
+     用标准 Skill（文件 7）就不用手工建这张表了——
+     工具归属写在 SKILL.md 的 include_tools 里。
+
+==============================================================
+4. Agent 的多轮记忆（thread_id）
+==============================================================
+  会话 A（user-001）：先自报家门，第二轮再考它
+    Q1: 你好，我叫张三，我的订单号是 SO001
+    A1: 你好张三！有什么可以帮您？比如查询物流、运费、库存或退款政策。
+    Q2: 我叫什么？订单号是多少   ← 考验记忆
+    A2: 你叫张三，订单号是 SO001。
+
+  会话 B（user-002，全新线程）：同样的问题，没有上文
+    Q1: 我叫什么？订单号是多少   ← 一字不差
+    A1: 您好，我这边看不到您的姓名和订单号信息。请提供订单号，我帮您查物流。
+
+  >> thread_id 就是会话隔离的开关：
+     · 同一个 thread_id → 能记住上文
+     · 不同 thread_id   → 完全隔离（B 不知道 A 说过什么）
+  【Java 对照】thread_id ≈ HttpSession 的 sessionId，
+     checkpointer ≈ 把 session 存进 Redis 的那个 Filter。
+
+==============================================================
+5. 中间件：给 Agent 装「工具筛选器」
+==============================================================
+  场景：Agent 挂了 50 个工具，每次全发给模型又贵又不准。
+  LLMToolSelectorMiddleware = 先用模型把工具筛一遍，再交给主模型。
+
+  ① 直接用（默认配置）：
+     ❌ OpenAIInvalidRequestError
+        Error code: 400 - {'error': {'message': 'This response_format type is unavailable now (request_id: d558039e-6c7a-4ce3-9709-503e0a326808)', 'type': 'in
+     原因：中间件内部用 with_structured_output 默认 json_schema，
+           DeepSeek 不支持 → 400
+
+  ② 绕过方案：传一个强制 function_calling 的模型给中间件：
+     class DeepSeekForStructured(ChatOpenAI):
+         def with_structured_output(self, schema, **kwargs):
+             kwargs.setdefault('method', 'function_calling')
+             return super().with_structured_output(schema, **kwargs)
+
+     再关思考（function_calling 和思考模式冲突，见文件 4）
+
+     ✅ 成功（没有再 400），实际调用的工具: ['logistics_track']
+     最终回复: 订单 SO001 的物流状态如下：
+
+- **当前位置**：已到达【广州转运中心】
+- **预计送达**：明天 18:00 前
+
+你可以明天留意一下派送信息～需要我帮你查别的订单吗？
+     注：这里的工具是「筛完剩下的 2 个」里选出来的，不是全部 5 个。
+
+  >> 常用参数：
+     max_tools       最多保留几个工具
+     model           用哪个模型筛选（传小模型可以省钱，这里传的是 DeepSeek 包装类）
+     always_include  永远保留的工具名（比如「查询当前用户」）
+     on_parsing_failure  筛不出来时怎么办：error / none / all / 工具名列表
+
+==============================================================
+6. 中间件：工具失败自动重试（实测）
+==============================================================
+  工具 flaky_express_query：前 2 次调用故意抛异常，第 3 次才成功。
+
+  工具被调用了 3 次
+  最终回复: 订单 SO007 的快递状态是：**已签收**。
+
+  >> 关键参数：
+     max_retries     最多重试几次
+     backoff_factor  退避倍数（2.0 = 0.5s/1s/2s 这样涨）
+     on_failure      'continue' 把错误交给模型 / 'error' 直接抛
+     生产建议：backoff_factor=2.0 + jitter=True（抖动，避免雪崩）
+
+  >> 其他几个常用中间件（签名已核对，本文件未逐一实测）：
+    中间件                         干什么                               什么时候用
+    ------------------------------------------------------------------------------------
+    ToolCallLimitMiddleware     限制工具调用次数（thread_limit/run_limit）  防死循环、防刷接口
+    ModelCallLimitMiddleware    限制模型调用次数                          控成本
+    ToolErrorMiddleware         自定义工具报错文案                         把 500 转成模型看得懂的话
+    HumanInTheLoopMiddleware    高危工具执行前人工确认                       取消订单、转账、删数据
+    PIIMiddleware               脱敏手机号/身份证                         合规
+    SummarizationMiddleware     历史太长时自动摘要                         长对话控 token
+    ModelFallbackMiddleware     主模型挂了切备用                          高可用
+
+==============================================================
+7. 完整实战：电商客服 Agent
+==============================================================
+  用户: 我上周买的键盘能退吗？
+  客服: 7 天无理由退货，但如果已经拆封，就需要有质量问题才能退；退款会在 3-5 个工作日到账。您是上周买的，建议尽快确认是否还在 7 天内；方便的话，请提供订单号，我帮您查一下具体状态。
+        （本轮新增消息 4 条，击中能力域: ['售后']）
+
+  用户: 那帮我看看订单 SO001 到哪了
+  客服: 订单 SO001 已到达【广州转运中心】，预计明天 18:00 前送达。如果需要拦截退货，建议现在就联系快递员或直接拒收。
+        （本轮新增消息 4 条，击中能力域: ['订单']）
+
+  用户: 顺便算下这台键盘 1.2kg 寄回深圳 800km 运费多少
+  客服: 寄回深圳的运费约 **89.80 元**（8 元起步价、按 1.2kg 计重、约 800km）。如果是质量问题退货，这笔运费通常由商家承担；无理由退货运费需自付，建议先确认退货原因。
+        （本轮新增消息 4 条，击中能力域: ['订单']）
+
+  整通对话累计击中: {'售后': 1, '订单': 2}
+
+  >> 这一套就是生产级 Agent 的骨架：
+     工具（三类） + 能力域分组 + 路由可观测 + 记忆 + 重试 + 系统提示词约束
+
+==============================================================
+8. 整套工具体系的选型清单
+==============================================================
+  【工具定义怎么选】
+    简单函数 + 有类型注解   → @tool（90% 场景够用）
+    要自定义校验/复用到多处 → StructuredTool.from_function
+    需要状态/复杂逻辑       → 继承 BaseTool
+    一组相关工具            → BaseToolkit / 字典分组（能力域）
+
+  【工具类型怎么设计】
+    逻辑公式类 → 纯函数，别放网络/IO，可直接单测
+    远程调用类 → 必带超时 + 重试 + 4xx 不重试/5xx 重试 + 结果裁剪
+    能力域     → 描述里写明「属于哪个域、什么时候用、什么时候别用」
+
+  【能力域路由怎么判断】
+    < 10 个工具  → 平铺 + 看 tool_calls
+    10~30 个     → 分组 + 回调埋点
+    > 30 个      → 两级路由 / LLMToolSelectorMiddleware
+    要 100% 可控 → tool_choice 强制指定
+
+  【DeepSeek 专属坑（本组实测，务必记住）】
+    ① with_structured_output 必须 method='function_calling'
+    ② function_calling / 强制 tool_choice 必须关思考
+       extra_body={'thinking': {'type': 'disabled'}}
+    ③ 但 bind_tools + tool_choice='auto' 可以开思考，不冲突
+    ④ LLMToolSelectorMiddleware 要配自定义 ChatOpenAI 子类才能用
+
+  【三条工程经验】
+    ① 工具描述是**模型唯一的决策依据**，比代码本身更重要
+    ② 有副作用的工具（取消、退款、转账）一定要人工确认
+    ③ 每次路由判断都要**留日志**，否则线上出问题无从查起
+
+==============================================================
+tool 组全部示例执行完毕。
+建议顺序：1 定义 → 2 公式 → 3 远程 → 4 绑定 → 5 分组路由 → 6 Agent → 7 Skill 标准
+
+进程已结束，退出代码为 0

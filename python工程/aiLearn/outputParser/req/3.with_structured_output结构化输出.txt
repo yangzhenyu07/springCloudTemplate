@@ -1,0 +1,81 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\outputParser\3.with_structured_output结构化输出.py
+3. with_structured_output 结构化输出（DeepSeek + 最新 API）
+
+==============================================================
+1. 默认模式 json_schema —— 实测：DeepSeek 不支持
+==============================================================
+  ❌ 失败: OpenAIInvalidRequestError
+  原因: Error code: 400 - {'error': {'message': 'This response_format type is unavailable now (request_id: 65717daa-43a1-4e51-9310-a884d4fed9d3)', 'type': 'in
+
+  >> langchain-openai 默认优先用 json_schema 模式，
+     但 DeepSeek 目前不支持这个 response_format 类型。
+     所以接 DeepSeek 时【必须】显式指定 method。
+
+==============================================================
+2. json_mode —— 实测：prompt 必须出现 json 这个词
+==============================================================
+prompt 里不含 json:
+  ❌ 失败: Error code: 400 - {'error': {'message': "Prompt must contain the word 'json' in some form to use 'response_format' of type 'json_o
+
+【2b】prompt 里明确写了 JSON:
+  ❌ 失败: OutputParserException Failed to parse Joke from completion {"type": "json_object", "joke": "程序员去面试，面试官问：“你最大的缺点是什么？”程序员说：“我不会撒谎。”面试官说：“这不算缺点。”程序员说：“我不在乎你怎么想。”"}. Got: 1 validation error for Joke
+punchli
+  >> 注意：json_mode 只是「要求输出 JSON 对象」，并不强制 schema，
+     小模型仍可能漏字段或加多余字段。实测它就多输出了 type 字段。
+
+  >> 这个限制是 OpenAI 系 API 的通用规则（OpenAI 也一样），
+     不算 DeepSeek 独有的坑，但很容易踩到。
+
+==============================================================
+3. function_calling —— 实测：必须关掉思考模式才可用
+==============================================================
+不关思考模式:
+  ❌ 失败: Error code: 400 - {'error': {'message': 'Thinking mode does not support this tool_choice (request_id: c0828b60-fe57-4918-b957-d94be7009f3b)', 'type':
+  >> 关键信息：Thinking mode does not support this tool_choice
+
+【3b】关掉思考模式（extra_body 传 thinking.disabled）:
+  ✅ 成功: Joke
+  笑话: 一个程序员去面试，面试官问：“你最大的缺点是什么？”程序员说：“我不太会撒谎。”面试官说：“这不算缺点啊。”程序员说：“我不在乎你怎么想。”
+  笑点: 他确实没撒谎——连“这不算缺点”这句客套话都懒得接。
+
+  >> 这就是 DeepSeek 做结构化输出的【正确姿势】：
+     ChatOpenAI(..., extra_body={'thinking': {'type': 'disabled'}})
+     + with_structured_output(Schema, method='function_calling')
+
+==============================================================
+4. 推荐写法：封装成可复用的结构化输出函数
+==============================================================
+  提取结果类型: BugReport
+  服务      : 支付服务
+  等级      : P0
+  现象      : 支付接口大量超时，响应时间从 50ms 涨至 8 秒，日志出现 connection pool exhausted
+  可能原因  : ['数据库连接池被打满，连接未及时释放（连接泄漏或长事务占用）', '数据库侧慢查询或锁等待导致连接被长时间占用', '流量突增或下游依赖变慢，导致请求堆积耗尽连接池']
+  需重启    : False
+
+  >> 嵌套/列表/可选字段全都支持，而且由 API 层面保证格式。
+  >> 生产环境建议：外层再包一层重试，应对偶发的解析失败。
+
+==============================================================
+5. 三条路线怎么选
+==============================================================
+  方案                      适用场景                  特点
+  ------------------------------------------------------------------------------
+  StrOutputParser         只要纯文本                 最简单，做打字机必备
+  JsonOutputParser        要 dict，字段简单           灵活，不校验字段
+  PydanticOutputParser    要对象 + 字段校验            IDE 补全好，缺字段会报错
+  with_structured_output  字段多/结构复杂/要求稳          API 层强制格式，最可靠
+
+  决策建议：
+   · 只是要一段文字            → StrOutputParser
+   · 1-3 个简单字段            → JsonOutputParser / PydanticOutputParser
+   · 嵌套结构、列表、可选字段  → with_structured_output
+   · 要接数据库/下游接口       → with_structured_output（格式有保证）
+
+  另外两个实用参数：
+   · include_raw=True   同时返回原始 AIMessage，方便排查问题
+   · 传 TypedDict 或 JSON Schema 也行，不一定要 pydantic 类
+
+==============================================================
+全部示例执行完毕。
+
+进程已结束，退出代码为 0

@@ -1,0 +1,73 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\memory\1.ChatMessageHistory基础.py
+E:\work\llmops\test\aiLearn\memory\1.ChatMessageHistory基础.py:58: LangChainDeprecationWarning: The class `InMemoryChatMessageHistory` was deprecated in LangChain 1.6.4 and will be removed in 2.0.0 See the short-term memory documentation for recommended alternatives: https://docs.langchain.com/oss/python/langchain/short-term-memory
+  history = InMemoryChatMessageHistory()
+1. ChatMessageHistory 基础（最新 API，无需 API key）
+   教材：old/ChatMessageHistory组件上手与源码解析/1.*
+
+==============================================================
+1. InMemoryChatMessageHistory：最基础的存取
+==============================================================
+读出来的消息列表：
+  1. [HumanMessage] 你好，我是慕小课，你是谁？
+  2. [AIMessage] 你好，我是智能助手，有什么可以帮到您的？
+
+清空前条数: 2
+clear() 之后条数: 0
+
+==============================================================
+2. 完整接口一览
+==============================================================
+add_messages() 批量加 3 条 → 3 条
+add_message() 再加 1 条 → 4 条
+
+第 1 条是: SystemMessage → 你是一个乐于助人的助手。
+
+接口方法小结：
+  .messages            读（property，不是方法，别加括号）
+  .add_messages(list)  批量写【推荐】
+  .add_message(msg)    单条写
+  .add_user_message(s) / .add_ai_message(s)   便捷写法
+  .clear()             清空
+  .aadd_messages / .aget_messages / .aclear   异步版本（默认内部转同步）
+
+>> 官方建议：更新历史时优先用 add_messages()，
+   别用 add_user_message + add_ai_message 各调一次——
+   如果底层是数据库，那就变成两次 IO 往返了。
+
+==============================================================
+3. 自己实现一个历史类（理解接口契约）
+==============================================================
+自实现的 history： ['我叫yangzhenyu', '你好！']
+clear() 之后： []
+
+>> 关键认知：所谓「记忆组件」，本质就是
+   【一个能读能写的消息列表 + 约定好的接口】。
+   换成文件存储 = 把 list 换成读写文件（第 2 个文件）
+   换成 Redis   = 把 list 换成 redis.lpush / lrange
+   换成 MySQL   = 把 list 换成 INSERT / SELECT
+
+==============================================================
+4. 序列化：怎么把消息存进文件/数据库
+==============================================================
+message_to_dict 之后（这就是存文件的格式）：
+   {'type': 'system', 'data': {'content': '你是助手', 'additional_kwargs': {}, 'response_metadata': {}, 'type': 'system', 'name': None, 'id': None}}
+   {'type': 'human', 'data': {'content': '我叫yangzhenyu', 'additional_kwargs': {}, 'response_metadata': {}, 'type': 'human', 'name': None, 'id': None}}
+   {'type': 'ai', 'data': {'content': '你好yangzhenyu！', 'additional_kwargs': {}, 'response_metadata': {}, 'type': 'ai', 'name': None, 'id': None, 'tool_calls': [], 'invalid_tool_calls': [], 'usage_metadata': None}}
+
+messages_from_dict 还原： ['SystemMessage', 'HumanMessage', 'AIMessage']
+  内容是否一致: True
+
+get_buffer_string() 拼成文本（老教材的 FileChatMessageHistory 就是这么塞进 prompt 的）：
+  System: 你是助手
+  Human: 我叫yangzhenyu
+  AI: 你好yangzhenyu！
+
+>> 用哪个？
+   · 结构化存储（文件/DB）→ message_to_dict / messages_from_dict
+   · 直接拼进 prompt 文本 → get_buffer_string
+   · 正常使用（塞 MessagesPlaceholder）→ 都不用，直接传 messages 列表
+
+==============================================================
+全部示例执行完毕。下一个：2.持久化历史存储.py
+
+进程已结束，退出代码为 0

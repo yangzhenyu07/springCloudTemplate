@@ -1,0 +1,248 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\tool\7.Skill标准规范与渐进式加载.py
+7. Skill 标准规范与渐进式加载（Agent Skills 开放标准 + DeepSeek）
+
+==============================================================
+1. Skill 的标准是什么（以及我前面错在哪）
+==============================================================
+  【事实】Agent Skills 是开放标准，不是某个库的类：
+    · Anthropic 发起，2025-12-18 发布为 open standard
+    · 规范站 https://skill.md，几十家 agent 产品支持
+    · LangChain 官方实现：deepagents 包（本文件用的就是它）
+
+  一个 skill 就是一个目录，核心是 SKILL.md：
+
+    order-service/
+    ├── SKILL.md              ← 必需
+    ├── scripts/quote.py      ← 可选，被执行不读入上下文
+    └── references/           ← 可选，按需读
+
+  SKILL.md 的结构：
+
+    ---
+    name: order-service
+    description: >
+      订单域能力。查询订单状态与物流轨迹、计算快递运费。
+      触发场景：用户问「订单到哪了」「运费多少钱」...
+    ---
+    # 订单服务
+    （正文：流程、规范、注意事项）
+
+  只有 name 和 description 是必需字段。
+  description 最关键 —— 它是模型判断是否加载的唯一依据。
+
+  【对比：标准方案 vs 文件 5 的硬编码方案】
+    维度            标准方案                      硬编码方案
+    --------------------------------------------------------------
+    Skill 从哪来     扫描目录读 SKILL.md            Python 字典写死
+    能不能复用         换个目录就能换一套                 改代码
+    上下文开销         L1 只 ~100 tokens/skill    全量工具描述常驻
+    工具何时可见        读了 skill 才出现              一开始就全给
+    判断击中          看读了哪个 SKILL.md            查自己维护的反查表
+    跨产品           标准是开放的，可移植                只在这份代码里有效
+
+==============================================================
+2. L1 元数据：启动时只加载 name + description
+==============================================================
+  扫描目录: E:\work\llmops\test\aiLearn\tool\skills
+
+    【after-sale】元数据 86 字符 / 正文 439 字符
+      desc: 售后域能力。解答退款退货政策、创建售后工单。 触发场景：用户问「能退吗」「几天内可以退」「退款规则」「要投诉」「找人工」。 不适用于：查物流...
+    【order-service】元数据 122 字符 / 正文 665 字符
+      desc: 订单域能力。查询订单状态与物流轨迹、计算快递运费。 触发场景：用户问「订单到哪了」「物流进度」「我的订单什么状态」「运费多少钱」「什么时候送...
+    【product-service】元数据 94 字符 / 正文 533 字符
+      desc: 商品域能力。搜索商品、查询库存与规格参数。 触发场景：用户问「有没有货」「库存多少」「某个商品多少钱」「尺寸/材质/参数」。 不适用于：订单...
+
+  L1 元数据合计 302 字符，L2 正文合计 1637 字符
+  → 启动时只花 302 的开销，1637 的内容**一个字都不进上下文**
+  → 这就是渐进式披露：装 100 个 skill 也不怕撑爆上下文
+
+  >> 关键点：description 写得好不好，直接决定 skill 会不会被命中。
+     标准建议：同时写清「做什么」+「什么时候用」，必要时写明「不适用于什么」。
+
+==============================================================
+3. create_deep_agent：把标准接进 agent
+==============================================================
+  代码就这几行：
+
+    from deepagents import create_deep_agent
+    from deepagents.backends import FilesystemBackend
+
+    backend = FilesystemBackend(root_dir=HERE, virtual_mode=True)
+    agent = create_deep_agent(
+        model=build_llm(),
+        tools=ALL_TOOLS,
+        skills=['skills'],       # 包含 skill 目录的父目录
+        backend=backend,
+    )
+
+  ⚠️ 两个容易踩的点：
+     ① skills 要指向**父目录**，直接指向某个 skill 目录不会被加载
+     ② 路径用 forward slash（/），Windows 反斜杠不认
+
+  ✅ agent 构建成功
+     图节点: ['PatchToolCallsMiddleware.before_agent', 'SkillsMiddleware.before_agent', 'SkillsMiddleware.before_model', '_ParentNotifierMiddleware.after_agent', '__start__', 'model', 'tools']
+
+==============================================================
+4. L2 命中加载 + 怎么判断击中哪个 Skill
+==============================================================
+  标准方案里，「击中哪个 Skill」的答案是：
+      **看 agent 读了哪个 SKILL.md**
+  不再是查自己维护的反查表 —— 那是硬编码方案的做法。
+
+  用户: 我的订单 SO001 到哪了？
+    read_file: ['/skills/order-service/SKILL.md']
+    → 击中 Skill: ['order-service']
+    → 回答: 你的订单 **SO001** 现在在 **广州转运中心**，**预计**明天 18:00 前送到。
+
+如果你想看更细的物流节点，或者需要改地址、催件，跟我说一声就行。
+
+  用户: 商品 P100 还有多少库存？
+    read_file: ['/skills/product-service/SKILL.md']
+    → 击中 Skill: ['product-service']
+    → 回答: 商品 P100 目前**有货**，可用库存 **42 件**，所在仓库：**深圳宝安**（仓库位置会影响你的收货时间，深圳及周边一般更快）。
+
+需要我帮你确认规格参数或运费吗？
+
+  用户: 买了三天能退货吗？
+    read_file: ['/skills/after-sale/SKILL.md']
+    → 击中 Skill: ['after-sale']
+    → 回答: 您好～购买三天（在 7 天以内）是可以申请退货的，但具体要看商品状态：
+
+| 情况 | 能否退 |
+|---|---|
+| 未拆封 | ✅ 能退（7 天无理由） |
+| 已拆封且有质量问题 | ✅ 能
+
+
+==============================================================
+5. L3 资源：脚本执行 vs 文档按需读
+==============================================================
+  标准规定 skill 可以带三类附加资源，加载时机各不相同：
+
+    scripts/     被执行，源码**不进上下文**（0 token，只有 stdout 回来）
+    references/  按需 read_file 读入（读了才占上下文）
+    assets/      模板/素材，按需取
+
+  实测执行脚本: tool\skills\order-service\scripts\quote.py
+    stdout: 运费明细：起步价 8.0 元 + 重量费 1.8 元 + 距离费 80.0 元 = 合计 89.8 元
+    → 模型只拿到这一行输出，脚本源码 100 多行一个 token 都没进上下文
+
+  references 文件: tool\skills\product-service\references\spec-api.md
+    大小 590 字符
+    → 平时不在上下文里，只有 SKILL.md 指路、模型主动读时才加载
+
+  >> 为什么脚本要「执行」而不是「读」：
+     ① 省 token：读进来几百 token，执行只要几十 token 的输出
+     ② 稳：计算是确定性的，模型心算每次可能不一样
+  【Java 对照】把易错算式固化成工具类方法让模型调，而不是让它每次自己算
+
+==============================================================
+6. 用户点名 @skill：pinned_skills 预加载
+==============================================================
+  场景：用户已经知道要用哪个 skill，比如输入「@order-service 帮我查 SO001」。
+  如果走常规流程，agent 要先看到描述、再判断、再 read_file —— 多一轮调用。
+
+  官方做法：应用侧自己解析消息里的 @xxx / /xxx，把名字传 pinned_skills：
+
+    agent.invoke({
+        'messages': [{'role': 'user', 'content': '帮我查 SO001'}],
+        'pinned_skills': ['order-service'],   # ← 首轮就塞进上下文
+    }, config)
+
+  效果：下一次模型调用前，该 SKILL.md 会作为独立的 HumanMessage 追加进对话，
+        additional_kwargs 里带 lc_source='pinned_skill'。
+
+  ⚠️ 注意：**语法由应用自己解析**，deepagents 不负责识别消息里的 @ 或 /。
+     你在客户端看到的 @skill 就是这一层在干的事。
+
+    '@order-service 帮我查 SO001'               → pinned_skills=['order-service']
+    '/after-sale 能退吗'                        → pinned_skills=['after-sale']
+    '订单到哪了'                                  → pinned_skills=[]
+
+  实测调用（点名 order-service）：
+    注入的 pinned 消息数: 1
+    内容前 80 字: <skill name="order-service" path="/skills/order-service/SKILL.md">
+# 订单服务
+
+处理订单状
+    最终回答: **运费为 41.00 元**（2kg，300km）。
+
+明细：起步价 8 元 + 重量 2kg × 1.5 元/kg + 距离 300km × 0.1 元/km = 41 元。
+
+这是标准估算值；实
+
+==============================================================
+7. 工具跟着 skill 一起加载（include_tools）
+==============================================================
+  在 SKILL.md 的 frontmatter 里声明：
+
+    metadata:
+      include_tools: logistics_track calc_shipping_fee
+
+  ⚠️ 必须是**空格分隔的字符串**。我第一版写成了 YAML 列表：
+
+      include_tools:
+        - logistics_track      ❌ 会告警：
+        - calc_shipping_fee       should be a space-separated string of tool names
+
+  效果：
+    · 这些工具**不在** agent 的初始工具列表里
+    · agent 读完本 SKILL.md 之后，工具才进入上下文
+    · 在那之前调用 → 按 unknown tool 失败
+
+  >> 这解决了文件 5/6 里没解决的问题：
+     工具和「教你怎么用它的说明书」是绑定的，
+     不会出现「工具被调了但说明书没读」的尴尬。
+
+  各 skill 的工具绑定情况（从 frontmatter 解析）：
+    after-sale       → （不绑定工具，纯知识型）
+    order-service    → ['logistics_track', 'calc_shipping_fee']
+    product-service  → ['product_stock']
+
+  ⚠️ 关键：**绑定的工具要传给 SkillsMiddleware，不是传给 agent**
+     官方原话：Pass those tools to SkillsMiddleware instead of the agent
+     （我第一版就是传给 agent 的，结果工具根本没跟着 skill 出现）
+
+  实测：agent 本身一个工具都不给，工具只从 skill 绑定里来
+    实际调用过的工具: ['read_file', 'logistics_track']
+    击中 Skill: ['order-service']
+    回答: 订单 SO001 的物流情况：
+
+- **当前位置**：已到达【广州转运中心】
+- **预计送达**：明天 18:00 前（这是系统预估时间，不是承诺的送达时间）
+
+需要我帮您查其他订单或估算运费吗？
+
+    → ✅ 工具确实是从 skill 绑定里拿到的（agent 本身没带任何工具）
+
+==============================================================
+8. 总结：什么时候用哪种方案
+==============================================================
+  【Skill 的三种形态，按复杂度选】
+    纯知识/流程    → 只有 SKILL.md，不绑工具（本文件的 after-sale）
+    知识 + 工具    → SKILL.md + include_tools（order-service / product-service）
+    知识 + 长文档  → SKILL.md + references/（规格文档按需读）
+    知识 + 确定性计算 → SKILL.md + scripts/（执行不读入）
+
+  【和文件 5/6 的关系】
+    文件 5/6 讲的「判断击中哪个 Skill」的 6 种方法**依然有效**，
+    但它们是在「没有标准」时自己搭的方案。
+    有了标准之后：
+      · Skill 从目录加载，不再写死字典
+      · 判断击中 = 看 agent 读了哪个 SKILL.md（最本质）
+      · 回调/事件流那些方法仍然可以用来做埋点和进度提示
+
+  【写 SKILL.md 的三条硬规则】
+    ① description 必须写清「做什么 + 什么时候用」，这是命中的唯一依据
+    ② 正文控制在 500 行 / 5000 tokens 内，长了拆到 references/
+    ③ 引用层级只做一层，别 SKILL.md → a.md → b.md 套娃
+
+  【本机可以直接看的实例】
+    ~/.workbuddy/skills/java_init/SKILL.md
+    ~/.workbuddy/skills/pink-crystal-workbuddy-skin/SKILL.md
+
+==============================================================
+执行完毕。本组顺序：1 定义 → 2 公式 → 3 远程 → 4 绑定
+                  → 5 路由判断(旧方案) → 6 Agent → 7 标准 Skill
+
+进程已结束，退出代码为 0

@@ -1,0 +1,110 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\runnableModule\2.configurable_fields运行时改字段.py
+2. configurable_fields 运行时改字段（DeepSeek + 最新 API）
+   教材：old/Runnable组件配置运行时链内部/*
+
+==============================================================
+3. 换个对象：运行时替换提示词模板
+==============================================================
+  【默认模板】冷笑话：
+    请写一篇关于程序员主题的冷笑话
+
+  【运行时换成藏头诗模板】：
+    请写一篇关于程序员主题的藏头诗
+
+  >> 这个能力很好用：同一套代码，换个 config 就能换「玩法」。
+     比如运营后台让用户自己选「文案风格」，不用改代码重新发版。
+
+==============================================================
+4. ⚠️ 坑：字段名写错会直接报错（教材这里就写错了）
+==============================================================
+  教材原文写的是：
+    PromptTemplate.from_template(...).configurable_fields(
+        template_demo=ConfigurableField(id='prompt_template')
+    )
+
+  实测一下 template_demo 这个字段名：
+    ❌ ValueError: Configuration key template_demo not found in input_variables=['name'] input_types={} partial_variables={} template='你好{name}': available keys are dict_keys(['name', 'inpu
+
+  ⚠️ 教材里的 template_demo 是**笔误**，正确字段名是 template。
+     configurable_fields 会校验字段名，写错立刻 ValueError（这点是好事）。
+
+  怎么知道有哪些字段可用？看报错信息里的 available keys，或者直接看：
+   PromptTemplate 的可配字段: template / input_variables / partial_variables ...
+
+  >> 和 bind 对比一下：
+     bind                **不校验**，参数名写错要等调用时才炸
+     configurable_fields **会校验**，字段名写错立刻 ValueError
+     所以 configurable_fields 更安全。
+
+  ⚠️ 再踩一个：ChatOpenAI 上想让「模型名」可配，字段名是 model_name
+     model ❌ ValueError（字段名不对）
+     报错里列出的可用字段（节选）: dict_keys(['name', 'cache', 'verbose', 'callbacks', 'tags', 'metadata', 'custom_get_token_ids', 'rate_limiter', 'disable_streaming', 'output_version',
+     → 正确写法：configurable_fields(model_name=ConfigurableField(id='llm_model'))
+     因为 model 只是 model_name 的别名，configurable_fields 只认**真名**。
+
+==============================================================
+1. 基本用法：运行时改 temperature
+==============================================================
+  【不传配置】用模型默认的 temperature：
+    473
+    742
+
+  【传 llm_temperature=0】尽量确定：
+    647
+    742
+
+  >> temperature=0 只是**尽量**确定，DeepSeek 上不保证逐字一致
+     （这个结论在 model/1 里实测过）。
+
+==============================================================
+2. with_config：把配置「固化」成一条新链
+==============================================================
+  方式 A —— 调用时传：
+    742
+
+  方式 B —— with_config 固化（推荐，一次绑定到处用）：
+    427
+    742
+
+  >> 两种方式结果一样，区别只在写法：
+     方式 A 适合「每次调用参数都不同」
+     方式 B 适合「某类请求固定用某个配置」，比如给 VIP 用户用高配模型
+
+==============================================================
+5. 一次配多个字段：模型 + 提示词一起换
+==============================================================
+  【配置 A】默认模型 + 温柔的助手：
+    抱抱你，别一个人扛着。愿意和我说说发生了什么吗？
+
+  【配置 B】换 v4-pro + 严厉的教练：
+    别沉溺情绪，起来动一动，汗水能冲走不开心。
+
+  【配置 C】运行时连提示词结构一起换：
+    请你先简要介绍一下自己的经历和优势，好吗？
+
+  >> 多个字段可以同时配，config 里传一个 dict 就行。
+     这就是「一套代码，多种玩法」的实现基础。
+
+==============================================================
+6. configurable_fields vs bind vs alternatives
+==============================================================
+  方式                          默认值         运行时改        什么时候用
+  --------------------------------------------------------------------------
+  bind                        固定值         ❌ 不能改       参数全局固定
+  configurable_fields         有默认值        ✅ 能改        运行时调温度/换提示词
+  configurable_alternatives   有默认组件       ✅ 能换        运行时换整个模型/检索器
+
+  典型场景：
+   · A/B 测试：同一条链，用不同 temperature 对比效果
+   · 多租户：不同客户用不同模型/不同提示词
+   · 灰度发布：config 里切模型名，不用改代码
+   · 运营后台：让用户自己调参数
+
+  ⚠️ 注意：configurable_fields 改的是**组件字段**，
+     如果你要改的是「提示词里的变量值」，那个是普通输入，直接传就行，
+     不需要 configurable_fields。
+
+==============================================================
+全部示例执行完毕。下一个：3.configurable_alternatives动态替换组件.py
+
+进程已结束，退出代码为 0

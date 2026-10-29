@@ -1,0 +1,133 @@
+E:\work\llmops\test\yzy\Scripts\python.exe E:\work\llmops\test\aiLearn\runnableModule\3.configurable_alternatives动态替换组件.py
+3. configurable_alternatives 动态替换组件（DeepSeek + 最新 API）
+   教材：old/Runnable组件动态替换运行组件/1.*
+
+==============================================================
+3. 进阶：用 lambda 懒加载备选组件
+==============================================================
+  上面那种写法有个问题：**所有备选模型在链组装时就全被创建了**。
+  如果备选是个很重的对象（要连数据库、要加载模型），白浪费资源。
+
+  解法：传一个 **lambda（零参数函数）**，用到时才创建：
+
+  组装完链，此时创建次数: {'flash': 0, 'pro': 0}
+  用默认(flash)调一次后: {'flash': 0, 'pro': 0} （pro 没被创建）
+  切到 pro 调一次后: {'flash': 0, 'pro': 1} （pro 这时才创建）
+
+  >> 懒加载的价值：
+     · 备选组件很重时（连接、加载模型）能省启动开销
+     · 备选组件依赖运行时才能拿到的配置时，只能懒加载
+
+==============================================================
+4. ⚠️ 限制：不是所有 Runnable 都能用（实测）
+==============================================================
+  【先踩坑】想给 RunnableLambda 加 configurable_alternatives：
+
+    ❌ AttributeError: 'RunnableLambda' object has no attribute 'configurable_alternatives'
+
+  实测哪些类有这两个方法：
+
+    类                       configurable_fields     configurable_alternatives
+    ------------------------------------------------------------------
+    ChatOpenAI              True                    True
+    PromptTemplate          True                    True
+    RunnableParallel        True                    True
+    RunnablePassthrough     True                    True
+    RunnableLambda          False                   False
+
+  ⚠️ 结论：这两个方法只挂在 **RunnableSerializable**（pydantic 模型类）上，
+     而 RunnableLambda 是纯函数包装，**没有**这两个方法。
+     原因：它们靠 pydantic 的字段系统实现，函数没有字段可言。
+
+  【替代方案】RunnableLambda 可以直接接收第二个参数 config：
+
+    retriever=doc      → 登录页点击“忘记密码”即可重置密码。
+    retriever=faq      → 在设置-安全里操作。
+    retriever=ticket   → 请联系管理员协助重置密码。
+
+  >> 所以「换组件」的本质是**策略模式**：
+     注册多个实现，运行时选一个。
+     · pydantic 系组件（模型/提示词）→ 直接用 configurable_alternatives
+     · 普通函数                      → 用 RunnableLambda + config 自己分派
+
+==============================================================
+1. 基本用法：运行时在两个模型间切换
+==============================================================
+  用回调抓取「实际请求的 model_name」（比问模型自己是谁可靠）：
+
+    【默认】不传配置           → 实际模型: ['deepseek-flash']
+    【显式传 flash】        → 实际模型: ['deepseek-flash']
+    【传 pro】            → 实际模型: ['deepseek-v4-pro']
+
+  >> config 里传的值要和**备选的 key 名**一致（这里是 pro），
+     不是模型名，也不是 default_key。
+
+==============================================================
+2. ⚠️ 坑：key 名对不上会怎样（教材就踩了）
+==============================================================
+  教材的毛病：注册时叫 gpt4，调用时传 gpt4o（差一个字母）
+  复现一下：注册 pro，调用时故意传 pro_max
+
+    ❌ ValueError: Unknown alternative: pro_max
+
+  >> 传了不存在的 key 会直接报错（这点比静默降级好）。
+     教材里 gpt4 / gpt4o 那个不一致，在新版本上是会炸的。
+
+  另外实测：default_key 如果写了一个不存在的 key 会怎样？
+    ✅ 不存在的 default_key 也能跑（会退化成基础组件）
+     → default_key 不存在时不报错，会用**基础组件**（构造时的那个）兜底。
+
+==============================================================
+5. prefix_keys：给「备选组件自己的字段」加命名空间
+==============================================================
+  先说清楚它**不是**什么：
+    ❌ 不是让你把选择 key 写成 'llm/pro'（实测这样写会 ValueError）
+    ✅ 选择 key 永远还是 'pro'，和 prefix_keys 无关
+
+  它真正的作用：当**备选组件自己也有 configurable_fields** 时，
+  多个备选的字段 id 会撞车（都叫 t），一个 config 会同时改掉所有备选。
+  开了 prefix_keys 之后，就能用 '<id>==<key>/<field_id>' 精确指定某一个。
+
+  【prefix_keys=False】
+    {'llm': 'pro'}                         → 模型 ['deepseek-v4-pro'] / temperature [None]
+    {'llm': 'pro', 't': 0.1}               → 模型 ['deepseek-v4-pro'] / temperature [0.1]
+    {'llm': 'pro', 'llm==pro/t': 0.1}      → 模型 ['deepseek-v4-pro'] / temperature [None]
+
+  【prefix_keys=True】
+    {'llm': 'pro'}                         → 模型 ['deepseek-v4-pro'] / temperature [None]
+    {'llm': 'pro', 't': 0.1}               → 模型 ['deepseek-v4-pro'] / temperature [0.1]
+    {'llm': 'pro', 'llm==pro/t': 0.1}      → 模型 ['deepseek-v4-pro'] / temperature [0.1]
+
+  实测结论：
+    · prefix_keys=False：只有通用的 't' 生效（所有备选共享）
+    · prefix_keys=True ：'t' 和 'llm==pro/t' **都能**生效
+      → 想「只给 pro 配温度、不改 flash」就用 'llm==pro/t'
+
+  ⚠️ 什么时候才需要它：只有当你**给备选组件本身也加了 configurable_fields**
+     时才用得上。普通换模型场景不用开，开了反而容易记混。
+
+==============================================================
+6. 三个「动态」API 怎么选
+==============================================================
+  API                           干什么               运行时       用途
+  ----------------------------------------------------------------------------------
+  bind                          预置固定参数            ❌         参数永远不变
+  configurable_fields           改字段值              ✅         调温度 / 换提示词模板
+  configurable_alternatives     换整个组件             ✅         换模型 / 换检索器
+  with_fallbacks                出错才换              自动        降级容灾（第 4 个文件）
+
+  判断口诀：
+     想改一个值          → configurable_fields
+     想换一个东西        → configurable_alternatives
+     想出错才换          → with_fallbacks
+     值永远不变          → bind
+
+  ⚠️ 生产提醒：
+     · alternatives 的 key 建议集中定义成常量，别散落在字符串里
+     · 换模型要考虑 prompt 兼容性（不同模型对指令的服从度不同）
+     · 计费模型切换要有日志，否则成本对不上账
+
+==============================================================
+全部示例执行完毕。下一个：4.重试与回退机制.py
+
+进程已结束，退出代码为 0
